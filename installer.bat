@@ -67,9 +67,9 @@ REM ── Étape 3 : Configuration pip ─────────────�
 :install_pip
 echo  [3/4] Installation de pip...
 
-REM Activer pip en décommentant "import site" dans le fichier ._pth
+REM Activer pip en décommentant "import site" et ajouter le dossier parent (..) au path
 for %%f in ("%PYTHON_DIR%\python*._pth") do (
-    powershell -Command "(Get-Content '%%f') -replace '#import site','import site' | Set-Content '%%f'"
+    powershell -Command "$c = Get-Content '%%f' -Raw; $c = $c -replace '#import site','import site'; if ($c -notmatch '\.\.' ) { $c = $c -replace '(python\d+\.zip)', \"`$1`n..\" }; Set-Content '%%f' $c"
 )
 
 REM Télécharger et installer pip
