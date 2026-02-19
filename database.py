@@ -83,6 +83,7 @@ def init_db():
             notes TEXT DEFAULT '',
             duree_pret_jours INTEGER DEFAULT NULL,
             duree_pret_heures REAL DEFAULT NULL,
+            type_duree TEXT DEFAULT 'defaut',
             materiel_id INTEGER DEFAULT NULL,
             date_modification DATETIME DEFAULT NULL,
             FOREIGN KEY (personne_id) REFERENCES personnes(id),
@@ -145,6 +146,7 @@ def init_db():
     for col, default in [
         ('duree_pret_jours', 'INTEGER DEFAULT NULL'),
         ('duree_pret_heures', 'REAL DEFAULT NULL'),
+        ('type_duree', "TEXT DEFAULT 'defaut'"),
         ('materiel_id', 'INTEGER DEFAULT NULL'),
         ('lieu_id', 'INTEGER DEFAULT NULL'),
     ]:
@@ -239,6 +241,8 @@ def init_db():
         'impression_texte_libre': '',
         # ── Scanner de codes-barres ──
         'mode_scanner': 'les_deux',
+        # ── Heure de fin de journée ──
+        'heure_fin_journee': '17:45',
     }
     for cle, valeur in parametres_defaut.items():
         try:

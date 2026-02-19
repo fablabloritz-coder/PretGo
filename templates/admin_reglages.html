@@ -12,19 +12,23 @@
 </div>
 
 <div class="row g-4">
-    <!-- Durée d'alerte par défaut -->
+    <!-- Durées & alertes -->
     <div class="col-12 col-md-6">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3">
                 <h5 class="mb-0">
-                    <i class="bi bi-exclamation-triangle-fill text-danger"></i>
-                    Durée d'alerte par défaut
+                    <i class="bi bi-clock-fill text-primary"></i>
+                    Durées & alertes
                 </h5>
             </div>
             <div class="card-body p-4">
-                <p class="text-muted">
+                <!-- Durée d'alerte par défaut -->
+                <h6 class="fw-bold mb-2">
+                    <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                    Durée d'alerte par défaut
+                </h6>
+                <p class="text-muted small">
                     Après cette durée, un prêt sans durée personnalisée apparaîtra dans les alertes.
-                    Cette valeur s'applique à tous les prêts qui n'ont pas de durée spécifique.
                 </p>
                 <form method="POST" action="{{ url_for('admin_reglages') }}">
                     <input type="hidden" name="action" value="duree_alerte">
@@ -44,6 +48,37 @@
                                 <option value="jours" {{ 'selected' if unite_defaut == 'jours' }}>jour(s)</option>
                                 <option value="heures" {{ 'selected' if unite_defaut == 'heures' }}>heure(s)</option>
                             </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-lg"></i> Enregistrer
+                    </button>
+                </form>
+
+                <hr class="my-4">
+
+                <!-- Heure de fin de journée -->
+                <h6 class="fw-bold mb-2">
+                    <i class="bi bi-sunset-fill text-warning"></i>
+                    Heure de fin de journée
+                </h6>
+                <p class="text-muted small">
+                    Lors d'un prêt « fin de journée », le matériel doit être rendu avant cette heure.
+                    Au-delà, le prêt apparaîtra comme en dépassement.
+                </p>
+                <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <input type="hidden" name="action" value="heure_fin_journee">
+                    <div class="row align-items-center g-2 mb-3">
+                        <div class="col-auto">
+                            <input type="time"
+                                   name="heure_fin_journee"
+                                   class="form-control form-control-lg"
+                                   value="{{ heure_fin_journee }}"
+                                   required
+                                   style="width: 150px">
+                        </div>
+                        <div class="col-auto fs-5">
+                            <span class="text-muted">(actuellement {{ heure_fin_journee | replace(':', 'h') }})</span>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-lg">

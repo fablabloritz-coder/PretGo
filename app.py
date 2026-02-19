@@ -22,6 +22,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import unicodedata
 import uuid
@@ -147,6 +148,11 @@ def format_duree(pret):
     """Formate la durée d'un prêt en texte lisible."""
     if not pret:
         return 'Durée par défaut'
+    # Prêt de type "fin de journée"
+    type_duree = pret['type_duree'] if pret['type_duree'] else None
+    if type_duree == 'fin_journee':
+        heure_fin = get_setting('heure_fin_journee', '17:45')
+        return f'Fin de journée ({heure_fin.replace(":", "h")})'
     heures = pret['duree_pret_heures'] if pret['duree_pret_heures'] else None
     jours = pret['duree_pret_jours'] if pret['duree_pret_jours'] else None
     if heures is not None:
@@ -388,9 +394,9 @@ def nouveau_pret():
 
             cursor = conn.execute(
                 '''INSERT INTO prets (personne_id, descriptif_objets, date_emprunt,
-                   notes, duree_pret_jours, duree_pret_heures, lieu_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures, lieu_id)
+                   notes, duree_pret_jours, duree_pret_heures, type_duree, lieu_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures, duree_type, lieu_id)
             )
             pret_id = cursor.lastrowid
 
@@ -432,6 +438,7 @@ def nouveau_pret():
         lieux=lieux,
         duree_defaut=duree_defaut,
         unite_defaut=unite_defaut,
+        heure_fin_journee=get_setting('heure_fin_journee', '17:45'),
         mode_scanner=get_setting('mode_scanner', 'les_deux')
     )
 
@@ -1651,6 +1658,19 @@ def admin_reglages():
             else:
                 flash('Mode de scanner invalide.', 'danger')
 
+        elif action == 'heure_fin_journee':
+            heure = request.form.get('heure_fin_journee', '17:45').strip()
+            # Valider le format HH:MM
+            if re.match(r'^\d{1,2}:\d{2}$', heure):
+                h, m = heure.split(':')
+                if 0 <= int(h) <= 23 and 0 <= int(m) <= 59:
+                    set_setting('heure_fin_journee', heure)
+                    flash(f'Heure de fin de journée : {heure.replace(":", "h")}.', 'success')
+                else:
+                    flash('Heure invalide.', 'danger')
+            else:
+                flash('Format d\'heure invalide (attendu HH:MM).', 'danger')
+
         return redirect(url_for('admin_reglages'))
 
     duree_defaut = get_setting('duree_alerte_defaut', '7')
@@ -1675,7 +1695,8 @@ def admin_reglages():
                            imp_taille_texte=get_setting('impression_taille_texte', '8'),
                            imp_taille_sous_texte=get_setting('impression_taille_sous_texte', '6'),
                            imp_texte_libre=get_setting('impression_texte_libre', ''),
-                           mode_scanner=get_setting('mode_scanner', 'les_deux'))
+                           mode_scanner=get_setting('mode_scanner', 'les_deux'),
+                           heure_fin_journee=get_setting('heure_fin_journee', '17:45'))
 
 
 # ============================================================
@@ -2196,11 +2217,11 @@ def modifier_pret(pret_id):
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             conn.execute(
                 '''UPDATE prets SET personne_id=?, descriptif_objets=?, notes=?,
-                   duree_pret_jours=?, duree_pret_heures=?, materiel_id=NULL,
+                   duree_pret_jours=?, duree_pret_heures=?, type_duree=?, materiel_id=NULL,
                    lieu_id=?, date_modification=?
                    WHERE id=?''',
                 (personne_id, descriptif, notes, duree_pret_jours, duree_pret_heures,
-                 lieu_id, now, pret_id)
+                 duree_type, lieu_id, now, pret_id)
             )
             conn.commit()
             conn.close()
@@ -2237,6 +2258,7 @@ def modifier_pret(pret_id):
         lieux=lieux,
         duree_defaut=duree_defaut,
         unite_defaut=unite_defaut,
+        heure_fin_journee=get_setting('heure_fin_journee', '17:45'),
         mode_scanner=get_setting('mode_scanner', 'les_deux')
     )
 
