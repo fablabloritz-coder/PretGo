@@ -145,6 +145,10 @@
                 </td>
                 <td class="text-end">
                     <div class="d-flex gap-1 justify-content-end">
+                        <a href="{{ url_for('historique_materiel', mat_id=item.id) }}"
+                           class="btn btn-sm btn-outline-secondary" title="Historique des prêts">
+                            <i class="bi bi-clock-history"></i>
+                        </a>
                         <a href="{{ url_for('modifier_materiel', mat_id=item.id) }}"
                            class="btn btn-sm btn-outline-primary" title="Modifier">
                             <i class="bi bi-pencil"></i>

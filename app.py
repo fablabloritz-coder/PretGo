@@ -1868,6 +1868,36 @@ def admin_generer_demo():
                 (pid, descriptif, date_emprunt, date_retour, duree, mid, note)
             )
 
+        # ── Historique enrichi : plusieurs prêts passés sur certains équipements ──
+        # Environ 40% des matériels (en cours + retournés) reçoivent 2 à 4 prêts
+        # historiques supplémentaires avec des emprunteurs différents
+        indices_historique = random.sample(
+            list(range(len(valid_materiels))),
+            k=min(max(3, len(valid_materiels) * 2 // 5), len(valid_materiels))
+        )
+        for idx in indices_historique:
+            mid, type_mat, marque, modele = valid_materiels[idx]
+            descriptif = f'{marque} {modele}'
+            nb_anciens = random.randint(2, 4)
+            base_jours = 60  # on commence 60 jours dans le passé
+
+            for j in range(nb_anciens):
+                pid = random.choice(valid_personnes)
+                jours_debut = base_jours + random.randint(5, 30)
+                duree = random.choice([1, 3, 5, 7, 14])
+                jours_retour = max(base_jours, jours_debut - duree)
+                note = random.choice(notes_prets)
+                date_emprunt = (now - timedelta(days=jours_debut)).strftime('%Y-%m-%d %H:%M:%S')
+                date_retour = (now - timedelta(days=jours_retour)).strftime('%Y-%m-%d %H:%M:%S')
+
+                conn.execute(
+                    'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
+                    'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes) '
+                    'VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
+                    (pid, descriptif, date_emprunt, date_retour, duree, mid, note)
+                )
+                base_jours = jours_debut + random.randint(5, 20)
+
     conn.commit()
     conn.close()
 
@@ -2270,6 +2300,46 @@ def supprimer_materiel(mat_id):
     conn.close()
     flash('Matériel supprimé.', 'success')
     return redirect(url_for('inventaire'))
+
+
+# ============================================================
+#  HISTORIQUE D'UN ÉQUIPEMENT
+# ============================================================
+
+@app.route('/inventaire/historique/<int:mat_id>')
+@admin_required
+def historique_materiel(mat_id):
+    """Affiche l'historique chronologique de tous les prêts d'un équipement."""
+    conn = get_db()
+
+    materiel = conn.execute(
+        'SELECT * FROM inventaire WHERE id = ?', (mat_id,)
+    ).fetchone()
+
+    if not materiel:
+        conn.close()
+        flash('Matériel non trouvé.', 'danger')
+        return redirect(url_for('inventaire'))
+
+    # Tous les prêts liés à ce matériel, du plus récent au plus ancien
+    prets = conn.execute('''
+        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        WHERE p.materiel_id = ?
+        ORDER BY p.date_emprunt DESC
+    ''', (mat_id,)).fetchall()
+
+    # Statistiques rapides
+    stats = {
+        'total': len(prets),
+        'en_cours': sum(1 for p in prets if not p['retour_confirme']),
+        'retournes': sum(1 for p in prets if p['retour_confirme']),
+    }
+
+    conn.close()
+    return render_template('historique_materiel.html',
+                           materiel=materiel, prets=prets, stats=stats)
 
 
 @app.route('/inventaire/importer', methods=['GET', 'POST'])
