@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiche de prêt - PretGo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #333; padding: 20mm; }
+        .header { text-align: center; border-bottom: 3px solid #0d6efd; padding-bottom: 15px; margin-bottom: 25px; }
+        .header h1 { font-size: 24px; color: #0d6efd; margin-bottom: 5px; }
+        .header .etablissement { font-size: 16px; color: #666; }
+        .header .ref { font-size: 12px; color: #888; margin-top: 5px; }
+        .section { margin-bottom: 20px; }
+        .section h2 { font-size: 16px; background: #f0f4f8; padding: 8px 12px; border-left: 4px solid #0d6efd; margin-bottom: 12px; }
+        .field { display: flex; margin-bottom: 8px; }
+        .field .label { width: 180px; font-weight: bold; color: #555; flex-shrink: 0; }
+        .field .value { flex: 1; border-bottom: 1px solid #ddd; min-height: 22px; padding-left: 5px; }
+        table.items { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        table.items th { background: #f0f4f8; padding: 8px; text-align: left; font-size: 13px; border: 1px solid #ddd; }
+        table.items td { padding: 8px; border: 1px solid #ddd; }
+        .engagement { border: 2px solid #0d6efd; border-radius: 8px; padding: 15px; margin: 25px 0; background: #f8f9ff; }
+        .engagement p { font-size: 13px; line-height: 1.5; }
+        .signatures { display: flex; gap: 40px; margin-top: 30px; }
+        .signatures .sig-box { flex: 1; text-align: center; }
+        .signatures .sig-box .sig-label { font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        .signatures .sig-box .sig-area { border: 1px solid #ccc; height: 80px; border-radius: 4px; background: #fafafa; }
+        .signatures .sig-box .sig-date { font-size: 11px; color: #888; margin-top: 5px; }
+        .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+        @media print {
+            body { padding: 10mm; }
+            .no-print { display: none !important; }
+            @page { margin: 10mm; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align:center; margin-bottom:20px;">
+        <button onclick="window.print()" style="padding:10px 30px;font-size:16px;cursor:pointer;background:#0d6efd;color:white;border:none;border-radius:6px;">
+            🖨️ Imprimer cette fiche
+        </button>
+        <button onclick="window.close()" style="padding:10px 20px;font-size:14px;cursor:pointer;background:#6c757d;color:white;border:none;border-radius:6px;margin-left:10px;">
+            Fermer
+        </button>
+    </div>
+
+    <div class="header">
+        {% if nom_etablissement %}<div class="etablissement">{{ nom_etablissement }}</div>{% endif %}
+        <h1>FICHE DE PRÊT DE MATÉRIEL</h1>
+        <div class="ref">Référence : PRET-{{ pret.id }} — {{ pret.date_emprunt | format_date }}</div>
+    </div>
+
+    <div class="section">
+        <h2>Emprunteur</h2>
+        <div class="field">
+            <div class="label">Nom et prénom :</div>
+            <div class="value">{{ pret.nom }} {{ pret.prenom }}</div>
+        </div>
+        <div class="field">
+            <div class="label">Catégorie :</div>
+            <div class="value">{{ pret.categorie | label_categorie }}</div>
+        </div>
+        {% if pret.classe %}
+        <div class="field">
+            <div class="label">Classe / Service :</div>
+            <div class="value">{{ pret.classe }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Matériel prêté</h2>
+        {% if pret_items %}
+        <table class="items">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Description</th>
+                    <th>N° inventaire</th>
+                    <th>N° série</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pret_items %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.numero_inventaire or '—' }}</td>
+                    <td>{{ item.numero_serie or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="field">
+            <div class="label">Description :</div>
+            <div class="value">{{ pret.descriptif_objets }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Conditions du prêt</h2>
+        <div class="field">
+            <div class="label">Date d'emprunt :</div>
+            <div class="value">{{ pret.date_emprunt | format_date }}</div>
+        </div>
+        <div class="field">
+            <div class="label">Durée prévue :</div>
+            <div class="value">{{ pret | format_duree }}</div>
+        </div>
+        {% if pret.lieu_nom %}
+        <div class="field">
+            <div class="label">Lieu :</div>
+            <div class="value">{{ pret.lieu_nom }}</div>
+        </div>
+        {% endif %}
+        {% if pret.notes %}
+        <div class="field">
+            <div class="label">Observations :</div>
+            <div class="value">{{ pret.notes }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="engagement">
+        <p><strong>Engagement de l'emprunteur :</strong> Je soussigné(e) <strong>{{ pret.nom }} {{ pret.prenom }}</strong>,
+        reconnais avoir reçu le matériel décrit ci-dessus en bon état de fonctionnement.
+        Je m'engage à le restituer dans le même état dès que je n'en aurai plus l'usage,
+        et au plus tard à la date de retour prévue. En cas de dégradation, perte ou vol,
+        je m'engage à en informer immédiatement le service de prêt.</p>
+    </div>
+
+    <div class="signatures">
+        <div class="sig-box">
+            <div class="sig-label">Signature de l'emprunteur</div>
+            <div class="sig-area"></div>
+            <div class="sig-date">Date : ___/___/______</div>
+        </div>
+        <div class="sig-box">
+            <div class="sig-label">Signature du responsable</div>
+            <div class="sig-area"></div>
+            <div class="sig-date">Date : ___/___/______</div>
+        </div>
+    </div>
+
+    {% if pret.date_retour %}
+    <div class="section" style="margin-top:30px;">
+        <h2>Retour</h2>
+        <div class="field">
+            <div class="label">Date de retour :</div>
+            <div class="value">{{ pret.date_retour | format_date }}</div>
+        </div>
+        <div class="signatures" style="margin-top:15px;">
+            <div class="sig-box">
+                <div class="sig-label">Signature de l'emprunteur</div>
+                <div class="sig-area"></div>
+            </div>
+            <div class="sig-box">
+                <div class="sig-label">Signature du responsable</div>
+                <div class="sig-area"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        PretGo — Fiche générée le {{ now().strftime('%d/%m/%Y à %H:%M') }}
+    </div>
+</body>
+</html>

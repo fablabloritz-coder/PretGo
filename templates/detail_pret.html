@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Détail du prêt - Gestion de Prêts{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Détail du prêt - PretGo{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -59,47 +59,63 @@
 
                 <hr>
 
-                <!-- Détails du prêt -->
+                <!-- Détails du prêt - Multi-matériel -->
                 <div class="row mb-3">
                     <div class="col-4 text-muted">Objet(s) emprunté(s)</div>
                     <div class="col-8">
-                        <div class="d-flex align-items-center gap-3">
-                            {% if pret.materiel_image %}
-                            <img src="{{ url_for('static', filename='uploads/materiel/' + pret.materiel_image) }}"
-                                 alt="Photo du matériel" class="rounded shadow-sm"
-                                 style="width:80px; height:80px; object-fit:cover; cursor:pointer;"
-                                 data-bs-toggle="modal" data-bs-target="#modalImageMateriel">
-                            {% endif %}
-                            <div>
-                                <div class="fs-5">{{ pret.descriptif_objets }}</div>
-                                {% if pret.materiel_marque or pret.materiel_modele %}
-                                <small class="text-muted">
-                                    {{ pret.materiel_marque or '' }} {{ pret.materiel_modele or '' }}
-                                    {% if pret.materiel_num_inv %} — n°{{ pret.materiel_num_inv }}{% endif %}
-                                </small>
+                        {% if pret_items %}
+                            {% for item in pret_items %}
+                            <div class="d-flex align-items-center gap-2 {% if not loop.first %}mt-2{% endif %}">
+                                {% if item.image %}
+                                <img src="{{ url_for('static', filename='uploads/materiel/' + item.image) }}"
+                                     alt="Photo" class="rounded shadow-sm"
+                                     style="width:50px; height:50px; object-fit:cover;">
+                                {% else %}
+                                <i class="bi bi-box text-primary fs-4" style="min-width:30px;text-align:center;"></i>
                                 {% endif %}
+                                <div>
+                                    <div class="fw-bold">{{ item.description }}</div>
+                                    {% if item.marque or item.modele %}
+                                    <small class="text-muted">
+                                        {{ item.marque or '' }} {{ item.modele or '' }}
+                                        {% if item.numero_inventaire %} — n°{{ item.numero_inventaire }}{% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
                             </div>
-                        </div>
+                            {% endfor %}
+                        {% elif materiel_legacy %}
+                            <div class="d-flex align-items-center gap-3">
+                                {% if materiel_legacy.image %}
+                                <img src="{{ url_for('static', filename='uploads/materiel/' + materiel_legacy.image) }}"
+                                     alt="Photo" class="rounded shadow-sm"
+                                     style="width:80px; height:80px; object-fit:cover;">
+                                {% endif %}
+                                <div>
+                                    <div class="fs-5">{{ pret.descriptif_objets }}</div>
+                                    {% if materiel_legacy.marque or materiel_legacy.modele %}
+                                    <small class="text-muted">
+                                        {{ materiel_legacy.marque or '' }} {{ materiel_legacy.modele or '' }}
+                                        {% if materiel_legacy.numero_inventaire %} — n°{{ materiel_legacy.numero_inventaire }}{% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="fs-5">{{ pret.descriptif_objets }}</div>
+                        {% endif %}
                     </div>
                 </div>
 
-                {% if pret.materiel_image %}
-                <!-- Modal image en grand -->
-                <div class="modal fade" id="modalImageMateriel" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                        <div class="modal-content bg-transparent border-0">
-                            <div class="modal-body p-0 text-center">
-                                <img src="{{ url_for('static', filename='uploads/materiel/' + pret.materiel_image) }}"
-                                     alt="Photo du matériel" class="img-fluid rounded shadow"
-                                     style="max-height:80vh; cursor:pointer;"
-                                     onclick="this.closest('.modal').querySelector('.btn-close').click()">
-                                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-2"
-                                        data-bs-dismiss="modal"></button>
-                            </div>
-                        </div>
+                {% if pret.lieu_nom %}
+                <div class="row mb-3">
+                    <div class="col-4 text-muted">Lieu</div>
+                    <div class="col-8">
+                        <i class="bi bi-geo-alt text-primary"></i> {{ pret.lieu_nom }}
                     </div>
                 </div>
                 {% endif %}
+
                 <div class="row mb-3">
                     <div class="col-4 text-muted">Date d'emprunt</div>
                     <div class="col-8">
@@ -189,6 +205,10 @@
                     <i class="bi bi-pencil-square"></i> Modifier ce prêt
                 </a>
                 {% endif %}
+
+                <a href="{{ url_for('fiche_pret', pret_id=pret.id) }}" class="btn btn-outline-primary btn-lg" target="_blank">
+                    <i class="bi bi-printer"></i> Fiche de prêt
+                </a>
 
                 <form method="POST"
                       action="{{ url_for('supprimer_pret', pret_id=pret.id) }}"

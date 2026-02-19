@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Nouveau Prêt - Gestion de Prêts{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Nouveau Prêt - PretGo{% endblock %}
 
 {% block content %}
 <h1 class="page-title">
@@ -8,7 +8,7 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-        <form method="POST" action="{{ url_for('nouveau_pret') }}">
+        <form method="POST" action="{{ url_for('nouveau_pret') }}" id="formNouveauPret">
             <input type="hidden" id="personne_id" name="personne_id" value="">
 
             <!-- Étape 1 : Sélection de la personne -->
@@ -30,57 +30,65 @@
                 <div id="personne-selected" style="display:none" class="mt-2"></div>
             </div>
 
-            <!-- Étape 2 : Catégorie et description des objets -->
+            <!-- Étape 2 : Objets empruntés (multi-matériel) -->
             <div class="mb-4">
                 <label class="form-label fw-bold fs-5">
                     <i class="bi bi-box-fill text-primary"></i> 2. Quel(s) objet(s) ?
                 </label>
+                <p class="text-muted small mb-2">
+                    Ajoutez un ou plusieurs objets. Tapez pour chercher dans l'inventaire, ou saisissez un texte libre.
+                </p>
 
-                {% if categories %}
-                <div class="mb-3">
-                    <label for="categorie_materiel" class="form-label text-muted">
-                        <i class="bi bi-tags"></i> Catégorie de matériel
-                    </label>
-                    <select id="categorie_materiel" name="categorie_materiel" class="form-select form-select-lg">
-                        <option value="">— Sélectionnez une catégorie —</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat.nom }}">{{ cat.nom }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% endif %}
-
-                <div class="position-relative">
-                    <label for="descriptif_objets" class="form-label text-muted">
-                        <i class="bi bi-pencil"></i> Description / Précisions
-                    </label>
-                    <textarea id="descriptif_objets"
-                              name="descriptif_objets"
-                              class="form-control form-control-lg"
-                              rows="3"
-                              placeholder="Tapez un n° d'inventaire, une marque ou un modèle pour rechercher dans le stock, ou saisissez un texte libre..."
-                              autocomplete="off"
-                              required></textarea>
-                    <div id="inventaire-suggestions" class="autocomplete-results" style="display:none"></div>
-                </div>
-
-                <!-- Matériel inventorié lié (rempli automatiquement) -->
-                <input type="hidden" id="materiel_id" name="materiel_id" value="">
-                <div id="materiel-linked" class="mt-2" style="display:none">
-                    <div class="alert alert-success py-2 mb-0 d-flex align-items-center">
-                        <i class="bi bi-check-circle-fill me-2"></i>
-                        <span>Matériel inventorié lié : <strong id="materiel-linked-label"></strong></span>
-                        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="btn-unlink-materiel">
-                            <i class="bi bi-x-lg"></i> Délier
-                        </button>
+                <div id="items-container">
+                    <!-- Item 1 (par défaut) -->
+                    <div class="item-row mb-2" data-index="0">
+                        <div class="input-group">
+                            <input type="text"
+                                   name="items_description[]"
+                                   class="form-control form-control-lg item-input"
+                                   placeholder="N° inventaire, marque, modèle ou texte libre..."
+                                   autocomplete="off"
+                                   required>
+                            <input type="hidden" name="items_materiel_id[]" class="item-materiel-id" value="">
+                            <button type="button" class="btn btn-outline-info btn-scan-item" title="Scanner un code-barres">
+                                <i class="bi bi-upc-scan"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-remove-item" title="Retirer" style="display:none">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div class="item-linked mt-1" style="display:none">
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> <span class="linked-label"></span></span>
+                            <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1 btn-unlink-item">délier</button>
+                        </div>
+                        <div class="item-suggestions autocomplete-results" style="display:none"></div>
                     </div>
                 </div>
+
+                <button type="button" id="btn-add-item" class="btn btn-outline-primary btn-sm mt-2">
+                    <i class="bi bi-plus-circle"></i> Ajouter un objet
+                </button>
             </div>
 
-            <!-- Étape 3 : Durée du prêt (optionnel) -->
+            <!-- Étape 3 : Lieu (optionnel) -->
+            {% if lieux %}
             <div class="mb-4">
                 <label class="form-label fw-bold fs-5">
-                    <i class="bi bi-calendar-event-fill text-primary"></i> 3. Durée prévue du prêt (optionnel)
+                    <i class="bi bi-geo-alt-fill text-primary"></i> 3. Lieu de prêt (optionnel)
+                </label>
+                <select name="lieu_id" class="form-select">
+                    <option value="">— Aucun lieu spécifié —</option>
+                    {% for lieu in lieux %}
+                    <option value="{{ lieu.id }}">{{ lieu.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Durée du prêt (optionnel) -->
+            <div class="mb-4">
+                <label class="form-label fw-bold fs-5">
+                    <i class="bi bi-calendar-event-fill text-primary"></i> {{ '4' if lieux else '3' }}. Durée prévue du prêt (optionnel)
                 </label>
 
                 <div class="row g-2 mb-2">
@@ -154,10 +162,10 @@
                 </div>
             </div>
 
-            <!-- Étape 4 : Notes (optionnel) -->
+            <!-- Notes (optionnel) -->
             <div class="mb-4">
                 <label for="notes" class="form-label fw-bold fs-5">
-                    <i class="bi bi-chat-text-fill text-primary"></i> 4. Notes (optionnel)
+                    <i class="bi bi-chat-text-fill text-primary"></i> {{ '5' if lieux else '4' }}. Notes (optionnel)
                 </label>
                 <input type="text"
                        id="notes"
@@ -217,9 +225,26 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Scanner -->
+<div class="modal fade" id="modalScanner" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upc-scan"></i> Scanner un code-barres</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="scanner-reader" style="width:100%"></div>
+                <p class="text-muted text-center small mt-2">Placez le code-barres devant la caméra</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 // ── Date/heure en temps réel ──
 function updateDateTime() {
@@ -243,148 +268,180 @@ function toggleDuree() {
     document.getElementById('zone_fin_journee').style.display = (val === 'fin_journee') ? '' : 'none';
 }
 
-// ── Autocomplete inventaire sur la description ──
+// ══════════════════════════════════════
+//  MULTI-MATÉRIEL : gestion des items
+// ══════════════════════════════════════
 (function() {
-    const textarea = document.getElementById('descriptif_objets');
-    const suggestionsBox = document.getElementById('inventaire-suggestions');
-    const materielIdInput = document.getElementById('materiel_id');
-    const linkedBox = document.getElementById('materiel-linked');
-    const linkedLabel = document.getElementById('materiel-linked-label');
-    const btnUnlink = document.getElementById('btn-unlink-materiel');
-    let debounceTimer = null;
+    const container = document.getElementById('items-container');
+    const btnAdd = document.getElementById('btn-add-item');
+    let itemIndex = 1;
+    let debounceTimers = {};
+    let activeScanTarget = null;
+    let html5QrCode = null;
 
-    if (!textarea || !suggestionsBox) return;
-
-    textarea.addEventListener('input', function() {
-        clearTimeout(debounceTimer);
-        // Rechercher sur le dernier segment (après la dernière virgule ou retour à la ligne)
-        const val = this.value;
-        const lastSep = Math.max(val.lastIndexOf(','), val.lastIndexOf('\n'));
-        const segment = (lastSep >= 0 ? val.substring(lastSep + 1) : val).trim();
-        if (segment.length < 2) {
-            suggestionsBox.style.display = 'none';
-            return;
-        }
-        debounceTimer = setTimeout(() => rechercherInventaire(segment), 300);
-    });
-
-    // Fermer les suggestions si on clique ailleurs
-    document.addEventListener('click', function(e) {
-        if (!textarea.contains(e.target) && !suggestionsBox.contains(e.target)) {
-            suggestionsBox.style.display = 'none';
-        }
-    });
-
-    // Bouton délier
-    if (btnUnlink) {
-        btnUnlink.addEventListener('click', function() {
-            unlinkMateriel();
-            textarea.value = '';
-            textarea.focus();
+    function updateRemoveButtons() {
+        const rows = container.querySelectorAll('.item-row');
+        rows.forEach(row => {
+            row.querySelector('.btn-remove-item').style.display = rows.length > 1 ? '' : 'none';
         });
     }
 
-    function unlinkMateriel() {
-        if (materielIdInput) materielIdInput.value = '';
-        if (linkedBox) linkedBox.style.display = 'none';
-    }
+    // Ajouter un item
+    btnAdd.addEventListener('click', function() {
+        const row = document.createElement('div');
+        row.className = 'item-row mb-2';
+        row.dataset.index = itemIndex;
+        row.innerHTML = `
+            <div class="input-group">
+                <input type="text" name="items_description[]"
+                       class="form-control form-control-lg item-input"
+                       placeholder="N° inventaire, marque, modèle ou texte libre..."
+                       autocomplete="off" required>
+                <input type="hidden" name="items_materiel_id[]" class="item-materiel-id" value="">
+                <button type="button" class="btn btn-outline-info btn-scan-item" title="Scanner un code-barres">
+                    <i class="bi bi-upc-scan"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-remove-item" title="Retirer">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="item-linked mt-1" style="display:none">
+                <span class="badge bg-success"><i class="bi bi-check-circle"></i> <span class="linked-label"></span></span>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1 btn-unlink-item">délier</button>
+            </div>
+            <div class="item-suggestions autocomplete-results" style="display:none"></div>
+        `;
+        container.appendChild(row);
+        itemIndex++;
+        updateRemoveButtons();
+        row.querySelector('.item-input').focus();
+    });
 
-    function linkMateriel(id, label) {
-        if (materielIdInput) materielIdInput.value = id;
-        if (linkedLabel) linkedLabel.textContent = label;
-        if (linkedBox) linkedBox.style.display = 'block';
-    }
+    // Event delegation
+    container.addEventListener('click', function(e) {
+        if (e.target.closest('.btn-remove-item')) {
+            e.target.closest('.item-row').remove();
+            updateRemoveButtons();
+        }
+        if (e.target.closest('.btn-unlink-item')) {
+            const row = e.target.closest('.item-row');
+            row.querySelector('.item-materiel-id').value = '';
+            row.querySelector('.item-linked').style.display = 'none';
+        }
+        if (e.target.closest('.btn-scan-item')) {
+            activeScanTarget = e.target.closest('.item-row');
+            openScanner();
+        }
+    });
 
-    function rechercherInventaire(query) {
+    // Autocomplete inventaire
+    container.addEventListener('input', function(e) {
+        if (!e.target.classList.contains('item-input')) return;
+        const row = e.target.closest('.item-row');
+        const idx = row.dataset.index;
+        // Délier si l'utilisateur édite
+        row.querySelector('.item-materiel-id').value = '';
+        row.querySelector('.item-linked').style.display = 'none';
+        clearTimeout(debounceTimers[idx]);
+        const val = e.target.value.trim();
+        if (val.length < 2) { row.querySelector('.item-suggestions').style.display = 'none'; return; }
+        debounceTimers[idx] = setTimeout(() => searchInventaire(row, val), 300);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.item-row')) {
+            container.querySelectorAll('.item-suggestions').forEach(s => s.style.display = 'none');
+        }
+    });
+
+    function searchInventaire(row, query) {
         fetch('{{ url_for("api_inventaire") }}?q=' + encodeURIComponent(query))
             .then(r => r.json())
             .then(items => {
-                if (items.length === 0) {
-                    suggestionsBox.style.display = 'none';
-                    return;
-                }
-                suggestionsBox.innerHTML = '';
+                const box = row.querySelector('.item-suggestions');
+                if (!items.length) { box.style.display = 'none'; return; }
+                box.innerHTML = '';
                 items.forEach(item => {
-                    // Construire un label lisible
                     let label = item.type_materiel;
                     if (item.marque) label += ' — ' + item.marque;
                     if (item.modele) label += ' ' + item.modele;
-                    // Ajouter le n° inventaire seulement s'il n'est pas auto-généré
-                    if (item.numero_inventaire && !item.numero_inventaire.startsWith('AUTO-')) {
+                    if (item.numero_inventaire && !item.numero_inventaire.startsWith('AUTO-'))
                         label += ' (' + item.numero_inventaire + ')';
-                    }
                     const div = document.createElement('div');
                     div.className = 'autocomplete-item d-flex align-items-center gap-2';
-                    // Miniature si image disponible
                     if (item.image) {
                         const img = document.createElement('img');
                         img.src = '{{ url_for("static", filename="uploads/materiel/") }}' + encodeURIComponent(item.image);
-                        img.style.cssText = 'width:35px; height:35px; object-fit:cover; border-radius:4px; min-width:35px;';
+                        img.style.cssText = 'width:35px;height:35px;object-fit:cover;border-radius:4px;';
                         div.appendChild(img);
                     } else {
-                        const icon = document.createElement('i');
-                        icon.className = 'bi bi-pc-display text-primary';
-                        icon.style.cssText = 'font-size:1.2rem; min-width:30px; text-align:center;';
-                        div.appendChild(icon);
+                        const ic = document.createElement('i');
+                        ic.className = 'bi bi-pc-display text-primary';
+                        ic.style.cssText = 'font-size:1.2rem;min-width:30px;text-align:center;';
+                        div.appendChild(ic);
                     }
-                    const labelSpan = document.createElement('span');
-                    labelSpan.className = 'flex-grow-1';
-                    labelSpan.textContent = label;
-                    div.appendChild(labelSpan);
-                    const badge = document.createElement('span');
-                    badge.className = 'badge bg-success';
-                    badge.textContent = 'Inventaire';
-                    div.appendChild(badge);
-                    div.addEventListener('click', function() {
-                        // Remplacer uniquement le dernier segment par le label du matériel
-                        const cur = textarea.value;
-                        const lastSep = Math.max(cur.lastIndexOf(','), cur.lastIndexOf('\n'));
-                        if (lastSep >= 0) {
-                            textarea.value = cur.substring(0, lastSep + 1) + ' ' + label;
-                        } else {
-                            textarea.value = label;
-                        }
-                        suggestionsBox.style.display = 'none';
-                        linkMateriel(item.id, label);
-                        textarea.focus();
+                    const sp = document.createElement('span');
+                    sp.className = 'flex-grow-1'; sp.textContent = label;
+                    div.appendChild(sp);
+                    const bd = document.createElement('span');
+                    bd.className = 'badge bg-success'; bd.textContent = 'Inventaire';
+                    div.appendChild(bd);
+                    div.addEventListener('click', () => {
+                        row.querySelector('.item-input').value = label;
+                        row.querySelector('.item-materiel-id').value = item.id;
+                        row.querySelector('.linked-label').textContent = item.numero_inventaire || label;
+                        row.querySelector('.item-linked').style.display = 'block';
+                        box.style.display = 'none';
                     });
-                    suggestionsBox.appendChild(div);
+                    box.appendChild(div);
                 });
-                suggestionsBox.style.display = 'block';
-            })
-            .catch(() => { suggestionsBox.style.display = 'none'; });
+                box.style.display = 'block';
+            }).catch(() => {});
     }
-})();
 
-// ── Modal d'engagement avant soumission ──
-(function() {
-    const btnValider = document.getElementById('btn-valider-pret');
-    const btnConfirmer = document.getElementById('btn-confirmer-pret');
-    const form = document.querySelector('form[action]');
-
-    if (!btnValider || !btnConfirmer || !form) return;
-
-    btnValider.addEventListener('click', function() {
-        // Vérifications basiques avant d'ouvrir la modal
-        const personneId = document.getElementById('personne_id').value;
-        const descriptif = document.getElementById('descriptif_objets').value.trim();
-
-        if (!personneId) {
-            alert('Veuillez sélectionner une personne.');
-            return;
-        }
-        if (!descriptif) {
-            alert('Veuillez décrire le(s) objet(s) emprunté(s).');
-            return;
-        }
-
-        // Ouvrir la modal d'engagement
-        const modal = new bootstrap.Modal(document.getElementById('modalEngagement'));
+    // ── Scanner code-barres ──
+    function openScanner() {
+        const modal = new bootstrap.Modal(document.getElementById('modalScanner'));
         modal.show();
+        setTimeout(() => {
+            if (html5QrCode) try { html5QrCode.stop(); } catch(e) {}
+            html5QrCode = new Html5Qrcode("scanner-reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 100 } },
+                (decoded) => {
+                    html5QrCode.stop().then(() => {
+                        modal.hide();
+                        if (activeScanTarget) {
+                            const inp = activeScanTarget.querySelector('.item-input');
+                            inp.value = decoded;
+                            inp.dispatchEvent(new Event('input'));
+                        }
+                    });
+                }, () => {}
+            ).catch(err => {
+                document.getElementById('scanner-reader').innerHTML =
+                    '<div class="alert alert-warning text-center"><i class="bi bi-camera-video-off"></i> Caméra non disponible<br><small>' + err + '</small></div>';
+            });
+        }, 500);
+    }
+
+    document.getElementById('modalScanner').addEventListener('hidden.bs.modal', function() {
+        if (html5QrCode) try { html5QrCode.stop(); } catch(e) {}
     });
 
-    btnConfirmer.addEventListener('click', function() {
-        form.submit();
+    // ── Modal d'engagement ──
+    document.getElementById('btn-valider-pret').addEventListener('click', function() {
+        const pid = document.getElementById('personne_id').value;
+        let hasItem = false;
+        container.querySelectorAll('.item-input').forEach(i => { if (i.value.trim()) hasItem = true; });
+        if (!pid) { alert('Veuillez sélectionner une personne.'); return; }
+        if (!hasItem) { alert('Veuillez ajouter au moins un objet.'); return; }
+        new bootstrap.Modal(document.getElementById('modalEngagement')).show();
+    });
+
+    document.getElementById('btn-confirmer-pret').addEventListener('click', function() {
+        document.getElementById('formNouveauPret').submit();
     });
 })();
 </script>

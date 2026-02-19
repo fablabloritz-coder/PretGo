@@ -9,19 +9,23 @@ Puis ouvrir http://localhost:5000
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash, jsonify, Response, session, g
+    url_for, flash, jsonify, Response, session, g, send_file
 )
 from database import (
     get_db, init_db, reset_db, get_setting, set_setting,
-    hash_password, verify_password, generate_recovery_code
+    hash_password, verify_password, generate_recovery_code,
+    DATABASE_PATH, DATA_DIR, DOCUMENTS_DIR, BACKUP_DIR, RECOVERY_CODE_PATH
 )
 from datetime import datetime, timedelta
 from functools import wraps
 import csv
 import io
+import json
 import os
+import shutil
 import unicodedata
 import uuid
+import zipfile
 from werkzeug.utils import secure_filename
 
 # Dossier d'upload pour les images de matériel
@@ -306,9 +310,20 @@ def nouveau_pret():
 
     if request.method == 'POST':
         personne_id = request.form.get('personne_id')
-        descriptif = request.form.get('descriptif_objets', '').strip()
         notes = request.form.get('notes', '').strip()
-        materiel_id = request.form.get('materiel_id', '').strip() or None
+        lieu_id = request.form.get('lieu_id', '').strip() or None
+
+        # ── Récupération des items (multi-matériel) ──
+        items_desc = request.form.getlist('items_description[]')
+        items_mat = request.form.getlist('items_materiel_id[]')
+
+        # Nettoyer les items vides
+        items = []
+        for i in range(len(items_desc)):
+            desc = items_desc[i].strip() if i < len(items_desc) else ''
+            mat_id = items_mat[i].strip() if i < len(items_mat) else ''
+            if desc:
+                items.append((desc, int(mat_id) if mat_id else None))
 
         # ── Gestion de la durée (heures ou jours) ──
         duree_type = request.form.get('duree_type', 'defaut')
@@ -330,7 +345,6 @@ def nouveau_pret():
                 except ValueError:
                     pass
         elif duree_type == 'fin_journee':
-            # Calculer les heures restantes jusqu'à la fin de journée configurée
             heure_fin = get_setting('heure_fin_journee', '17:45')
             h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
             now = datetime.now()
@@ -339,21 +353,32 @@ def nouveau_pret():
                 delta = (fin_journee - now).total_seconds() / 3600
                 duree_pret_heures = round(delta, 2)
             else:
-                duree_pret_heures = 0.5  # Fallback si après la fin de journée
+                duree_pret_heures = 0.5
 
-        if not personne_id or not descriptif:
-            flash('Veuillez sélectionner une personne et décrire le(s) objet(s).', 'danger')
+        if not personne_id or not items:
+            flash('Veuillez sélectionner une personne et ajouter au moins un objet.', 'danger')
         else:
+            # Construire le descriptif combiné
+            descriptif = ' + '.join(desc for desc, _ in items)
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            conn.execute(
+
+            cursor = conn.execute(
                 '''INSERT INTO prets (personne_id, descriptif_objets, date_emprunt,
-                   notes, duree_pret_jours, duree_pret_heures, materiel_id)
+                   notes, duree_pret_jours, duree_pret_heures, lieu_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures, materiel_id)
+                (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures, lieu_id)
             )
-            # Passer le matériel lié en état "prêté"
-            if materiel_id:
-                conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (materiel_id,))
+            pret_id = cursor.lastrowid
+
+            # Insérer chaque item dans pret_materiels
+            for desc, mat_id in items:
+                conn.execute(
+                    'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, ?, ?)',
+                    (pret_id, mat_id, desc)
+                )
+                if mat_id:
+                    conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (mat_id,))
+
             conn.commit()
             flash('Prêt enregistré avec succès !', 'success')
             conn.close()
@@ -368,6 +393,9 @@ def nouveau_pret():
     inventaire = conn.execute(
         "SELECT * FROM inventaire WHERE actif = 1 AND etat = 'disponible' ORDER BY type_materiel, numero_inventaire"
     ).fetchall()
+    lieux = conn.execute(
+        'SELECT * FROM lieux WHERE actif = 1 ORDER BY nom'
+    ).fetchall()
 
     conn.close()
     duree_defaut = get_setting('duree_alerte_defaut', '7')
@@ -377,6 +405,7 @@ def nouveau_pret():
         personnes=personnes,
         categories=categories,
         inventaire=inventaire,
+        lieux=lieux,
         duree_defaut=duree_defaut,
         unite_defaut=unite_defaut
     )
@@ -419,14 +448,21 @@ def confirmer_retour(pret_id):
     signature = request.form.get('signature', '')
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # Récupérer le materiel_id avant de confirmer le retour
+    # Récupérer le materiel_id legacy avant de confirmer le retour
     pret = conn.execute('SELECT materiel_id FROM prets WHERE id = ?', (pret_id,)).fetchone()
 
     conn.execute(
         'UPDATE prets SET date_retour = ?, retour_confirme = 1, signature_retour = ? WHERE id = ?',
         (now, signature, pret_id)
     )
-    # Remettre le matériel lié en état "disponible"
+    # Libérer les matériels liés via pret_materiels (multi-matériel)
+    mats = conn.execute(
+        'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
+        (pret_id,)
+    ).fetchall()
+    for m in mats:
+        conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
+    # Rétrocompat : ancien champ materiel_id sur prets
     if pret and pret['materiel_id']:
         conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
     conn.commit()
@@ -942,9 +978,10 @@ def export_prets():
         SELECT pe.nom, pe.prenom, pe.categorie, pe.classe,
                p.descriptif_objets, p.date_emprunt, p.date_retour,
                CASE WHEN p.retour_confirme = 1 THEN 'Oui' ELSE 'Non' END as retourne,
-               p.notes
+               p.notes, l.nom AS lieu_nom
         FROM prets p
         JOIN personnes pe ON p.personne_id = pe.id
+        LEFT JOIN lieux l ON p.lieu_id = l.id
         ORDER BY p.date_emprunt DESC
     ''').fetchall()
     conn.close()
@@ -952,13 +989,14 @@ def export_prets():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe', 'Objet(s)',
-                     'Date emprunt', 'Date retour', 'Retourné', 'Notes'])
+                     'Date emprunt', 'Date retour', 'Retourné', 'Lieu', 'Notes'])
 
     for pret in prets:
         writer.writerow([
             pret['nom'], pret['prenom'], pret['categorie'], pret['classe'],
             pret['descriptif_objets'], pret['date_emprunt'],
-            pret['date_retour'] or '', pret['retourne'], pret['notes'] or ''
+            pret['date_retour'] or '', pret['retourne'],
+            pret['lieu_nom'] or '', pret['notes'] or ''
         ])
 
     return _csv_response(output, 'export_historique_prets')
@@ -971,9 +1009,10 @@ def export_prets_en_cours():
     conn = get_db()
     prets = conn.execute('''
         SELECT pe.nom, pe.prenom, pe.categorie, pe.classe,
-               p.descriptif_objets, p.date_emprunt, p.notes
+               p.descriptif_objets, p.date_emprunt, p.notes, l.nom AS lieu_nom
         FROM prets p
         JOIN personnes pe ON p.personne_id = pe.id
+        LEFT JOIN lieux l ON p.lieu_id = l.id
         WHERE p.retour_confirme = 0
         ORDER BY p.date_emprunt DESC
     ''').fetchall()
@@ -982,13 +1021,13 @@ def export_prets_en_cours():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe', 'Objet(s)',
-                     'Date emprunt', 'Notes'])
+                     'Date emprunt', 'Lieu', 'Notes'])
 
     for pret in prets:
         writer.writerow([
             pret['nom'], pret['prenom'], pret['categorie'], pret['classe'],
             pret['descriptif_objets'], pret['date_emprunt'],
-            pret['notes'] or ''
+            pret['lieu_nom'] or '', pret['notes'] or ''
         ])
 
     return _csv_response(output, 'export_prets_en_cours')
@@ -1027,13 +1066,13 @@ def export_alertes():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe', 'Objet(s)',
-                     'Date emprunt', 'Dépassement', 'Notes'])
+                     'Date emprunt', 'Dépassement', 'Lieu', 'Notes'])
 
     for a in alertes_list:
         writer.writerow([
             a['nom'], a['prenom'], a['categorie'], a['classe'],
             a['descriptif_objets'], a['date_emprunt'],
-            a['depassement_texte'], a['notes'] or ''
+            a['depassement_texte'], a.get('lieu_nom', '') or '', a['notes'] or ''
         ])
 
     return _csv_response(output, 'export_alertes')
@@ -1573,6 +1612,11 @@ def admin_reglages():
             set_setting('impression_texte_libre', request.form.get('impression_texte_libre', '').strip())
             flash('Paramètres d\'impression enregistrés.', 'success')
 
+        elif action == 'nom_etablissement':
+            nom_etab = request.form.get('nom_etablissement', '').strip()
+            set_setting('nom_etablissement', nom_etab)
+            flash('Nom de l\'établissement enregistré.', 'success')
+
         return redirect(url_for('admin_reglages'))
 
     duree_defaut = get_setting('duree_alerte_defaut', '7')
@@ -1580,6 +1624,7 @@ def admin_reglages():
     zpl_default = '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ'
     return render_template('admin_reglages.html',
                            duree_defaut=duree_defaut, unite_defaut=unite_defaut,
+                           nom_etablissement=get_setting('nom_etablissement', ''),
                            imp_zebra_active=get_setting('impression_zebra_active', '0'),
                            imp_zebra_methode=get_setting('impression_zebra_methode', 'serial'),
                            imp_port=get_setting('impression_port', 'COM3'),
@@ -1824,6 +1869,17 @@ def admin_generer_demo():
     ]
 
     if valid_personnes and valid_materiels:
+        # ── Lieux existants pour affectation aléatoire ──
+        lieux_ids = [row['id'] for row in conn.execute(
+            'SELECT id FROM lieux WHERE actif = 1'
+        ).fetchall()]
+
+        def random_lieu():
+            """Retourne un lieu_id aléatoire ou None (50 % de chance)."""
+            if lieux_ids and random.random() < 0.5:
+                return random.choice(lieux_ids)
+            return None
+
         # Prêts en cours (environ 30 % des matériels)
         nb_prets_en_cours = max(2, len(valid_materiels) // 3)
         indices_mat = list(range(len(valid_materiels)))
@@ -1837,12 +1893,19 @@ def admin_generer_demo():
             duree = random.choice([1, 3, 5, 7, 14])
             note = random.choice(notes_prets)
             date_emprunt = (now - timedelta(days=jours_ago)).strftime('%Y-%m-%d %H:%M:%S')
+            lieu = random_lieu()
 
-            conn.execute(
+            cursor = conn.execute(
                 'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                'retour_confirme, duree_pret_jours, materiel_id, notes) '
-                'VALUES (?, ?, ?, 0, ?, ?, ?)',
-                (pid, descriptif, date_emprunt, duree, mid, note)
+                'retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id) '
+                'VALUES (?, ?, ?, 0, ?, ?, ?, ?)',
+                (pid, descriptif, date_emprunt, duree, mid, note, lieu)
+            )
+            pret_id = cursor.lastrowid
+            # Créer l'entrée pret_materiels correspondante
+            conn.execute(
+                'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, ?, ?)',
+                (pret_id, mid, descriptif)
             )
             conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (mid,))
 
@@ -1860,17 +1923,21 @@ def admin_generer_demo():
             note = random.choice(notes_prets)
             date_emprunt = (now - timedelta(days=jours_ago)).strftime('%Y-%m-%d %H:%M:%S')
             date_retour = (now - timedelta(days=retour_jours_ago)).strftime('%Y-%m-%d %H:%M:%S')
+            lieu = random_lieu()
 
-            conn.execute(
+            cursor = conn.execute(
                 'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes) '
-                'VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
-                (pid, descriptif, date_emprunt, date_retour, duree, mid, note)
+                'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id) '
+                'VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)',
+                (pid, descriptif, date_emprunt, date_retour, duree, mid, note, lieu)
+            )
+            pret_id = cursor.lastrowid
+            conn.execute(
+                'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, ?, ?)',
+                (pret_id, mid, descriptif)
             )
 
         # ── Historique enrichi : plusieurs prêts passés sur certains équipements ──
-        # Environ 40% des matériels (en cours + retournés) reçoivent 2 à 4 prêts
-        # historiques supplémentaires avec des emprunteurs différents
         indices_historique = random.sample(
             list(range(len(valid_materiels))),
             k=min(max(3, len(valid_materiels) * 2 // 5), len(valid_materiels))
@@ -1879,7 +1946,7 @@ def admin_generer_demo():
             mid, type_mat, marque, modele = valid_materiels[idx]
             descriptif = f'{marque} {modele}'
             nb_anciens = random.randint(2, 4)
-            base_jours = 60  # on commence 60 jours dans le passé
+            base_jours = 60
 
             for j in range(nb_anciens):
                 pid = random.choice(valid_personnes)
@@ -1889,14 +1956,59 @@ def admin_generer_demo():
                 note = random.choice(notes_prets)
                 date_emprunt = (now - timedelta(days=jours_debut)).strftime('%Y-%m-%d %H:%M:%S')
                 date_retour = (now - timedelta(days=jours_retour)).strftime('%Y-%m-%d %H:%M:%S')
+                lieu = random_lieu()
 
-                conn.execute(
+                cursor = conn.execute(
                     'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                    'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes) '
-                    'VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
-                    (pid, descriptif, date_emprunt, date_retour, duree, mid, note)
+                    'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id) '
+                    'VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)',
+                    (pid, descriptif, date_emprunt, date_retour, duree, mid, note, lieu)
+                )
+                pret_id = cursor.lastrowid
+                conn.execute(
+                    'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, ?, ?)',
+                    (pret_id, mid, descriptif)
                 )
                 base_jours = jours_debut + random.randint(5, 20)
+
+        # ── Quelques prêts multi-matériels pour la démo ──
+        if len(valid_materiels) >= 3 and len(valid_personnes) >= 2:
+            accessoires = ['Câble HDMI', 'Souris sans fil', 'Chargeur', 'Sacoche', 'Adaptateur USB-C', 'Rallonge']
+            for _ in range(min(3, len(valid_personnes) // 4 + 1)):
+                pid = random.choice(valid_personnes)
+                nb_items = random.randint(2, 4)
+                items_desc = random.sample(accessoires, min(nb_items - 1, len(accessoires)))
+                # Premier item = un matériel de l'inventaire (libre)
+                libre = conn.execute(
+                    "SELECT id, marque, modele FROM inventaire WHERE etat = 'disponible' AND actif = 1 LIMIT 1"
+                ).fetchone()
+                if libre:
+                    desc_principal = f"{libre['marque']} {libre['modele']}"
+                    all_desc = [desc_principal] + items_desc
+                    descriptif_combine = ' + '.join(all_desc)
+                    date_emprunt = (now - timedelta(days=random.randint(0, 5))).strftime('%Y-%m-%d %H:%M:%S')
+                    lieu = random_lieu()
+
+                    cursor = conn.execute(
+                        'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
+                        'retour_confirme, duree_pret_jours, notes, lieu_id) '
+                        'VALUES (?, ?, ?, 0, ?, ?, ?)',
+                        (pid, descriptif_combine, date_emprunt, random.choice([3, 7, 14]),
+                         random.choice(notes_prets), lieu)
+                    )
+                    pret_id = cursor.lastrowid
+                    # Premier item lié à l'inventaire
+                    conn.execute(
+                        'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, ?, ?)',
+                        (pret_id, libre['id'], desc_principal)
+                    )
+                    conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (libre['id'],))
+                    # Items supplémentaires (texte libre)
+                    for desc in items_desc:
+                        conn.execute(
+                            'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, NULL, ?)',
+                            (pret_id, desc)
+                        )
 
     conn.commit()
     conn.close()
@@ -1916,20 +2028,38 @@ def detail_pret(pret_id):
     conn = get_db()
     pret = conn.execute('''
         SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie,
-               inv.image AS materiel_image, inv.marque AS materiel_marque,
-               inv.modele AS materiel_modele, inv.numero_inventaire AS materiel_num_inv
+               l.nom AS lieu_nom
         FROM prets p
         JOIN personnes pe ON p.personne_id = pe.id
-        LEFT JOIN inventaire inv ON p.materiel_id = inv.id
+        LEFT JOIN lieux l ON p.lieu_id = l.id
         WHERE p.id = ?
     ''', (pret_id,)).fetchone()
-    conn.close()
 
     if not pret:
+        conn.close()
         flash('Prêt non trouvé.', 'danger')
         return redirect(url_for('index'))
 
-    return render_template('detail_pret.html', pret=pret)
+    # Charger les items multi-matériel
+    pret_items = conn.execute('''
+        SELECT pm.*, inv.marque, inv.modele, inv.numero_inventaire, inv.image
+        FROM pret_materiels pm
+        LEFT JOIN inventaire inv ON pm.materiel_id = inv.id
+        WHERE pm.pret_id = ?
+    ''', (pret_id,)).fetchall()
+
+    # Rétrocompat : ancien champ materiel_id (pour les prêts créés avant multi-matériel)
+    materiel_legacy = None
+    if not pret_items and pret['materiel_id']:
+        materiel_legacy = conn.execute('''
+            SELECT image, marque, modele, numero_inventaire
+            FROM inventaire WHERE id = ?
+        ''', (pret['materiel_id'],)).fetchone()
+
+    conn.close()
+
+    return render_template('detail_pret.html', pret=pret,
+                           pret_items=pret_items, materiel_legacy=materiel_legacy)
 
 
 # ============================================================
@@ -1959,9 +2089,18 @@ def modifier_pret(pret_id):
 
     if request.method == 'POST':
         personne_id = request.form.get('personne_id', '').strip()
-        descriptif = request.form.get('descriptif_objets', '').strip()
         notes = request.form.get('notes', '').strip()
-        materiel_id = request.form.get('materiel_id', '').strip() or None
+        lieu_id = request.form.get('lieu_id', '').strip() or None
+
+        # ── Récupération des items (multi-matériel) ──
+        items_desc = request.form.getlist('items_description[]')
+        items_mat = request.form.getlist('items_materiel_id[]')
+        items = []
+        for i in range(len(items_desc)):
+            desc = items_desc[i].strip() if i < len(items_desc) else ''
+            mat_id = items_mat[i].strip() if i < len(items_mat) else ''
+            if desc:
+                items.append((desc, int(mat_id) if mat_id else None))
 
         # ── Gestion de la durée ──
         duree_type = request.form.get('duree_type', 'defaut')
@@ -1992,42 +2131,63 @@ def modifier_pret(pret_id):
                 duree_pret_heures = round(delta, 2)
             else:
                 duree_pret_heures = 0.5
-        # defaut : laisser None pour que la durée soit calculée dynamiquement
-        # (cohérent avec nouveau_pret)
 
-        if not personne_id or not descriptif:
-            flash('Veuillez sélectionner une personne et décrire le(s) objet(s).', 'danger')
+        if not personne_id or not items:
+            flash('Veuillez sélectionner une personne et ajouter au moins un objet.', 'danger')
         else:
-            # Gérer le changement de matériel lié
-            ancien_materiel_id = pret['materiel_id']
-            nouveau_materiel_id = int(materiel_id) if materiel_id else None
-            if ancien_materiel_id != nouveau_materiel_id:
-                # Libérer l'ancien matériel s'il y en avait un
-                if ancien_materiel_id:
-                    conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (ancien_materiel_id,))
-                # Passer le nouveau matériel en prêté s'il y en a un
-                if nouveau_materiel_id:
-                    conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (nouveau_materiel_id,))
+            descriptif = ' + '.join(desc for desc, _ in items)
+
+            # Libérer les anciens matériels liés (pret_materiels)
+            anciens_mats = conn.execute(
+                'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
+                (pret_id,)
+            ).fetchall()
+            for am in anciens_mats:
+                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (am['materiel_id'],))
+            # Rétrocompat ancien champ
+            if pret['materiel_id']:
+                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+
+            # Supprimer anciens items et recréer
+            conn.execute('DELETE FROM pret_materiels WHERE pret_id = ?', (pret_id,))
+            for desc, mat_id in items:
+                conn.execute(
+                    'INSERT INTO pret_materiels (pret_id, materiel_id, description) VALUES (?, ?, ?)',
+                    (pret_id, mat_id, desc)
+                )
+                if mat_id:
+                    conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (mat_id,))
 
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             conn.execute(
                 '''UPDATE prets SET personne_id=?, descriptif_objets=?, notes=?,
-                   duree_pret_jours=?, duree_pret_heures=?, materiel_id=?,
-                   date_modification=?
+                   duree_pret_jours=?, duree_pret_heures=?, materiel_id=NULL,
+                   lieu_id=?, date_modification=?
                    WHERE id=?''',
                 (personne_id, descriptif, notes, duree_pret_jours, duree_pret_heures,
-                 materiel_id, now, pret_id)
+                 lieu_id, now, pret_id)
             )
             conn.commit()
             conn.close()
             flash('Prêt modifié avec succès.', 'success')
             return redirect(url_for('detail_pret', pret_id=pret_id))
 
+    # Charger les items existants
+    pret_items = conn.execute('''
+        SELECT pm.*, inv.marque, inv.modele, inv.numero_inventaire
+        FROM pret_materiels pm
+        LEFT JOIN inventaire inv ON pm.materiel_id = inv.id
+        WHERE pm.pret_id = ?
+    ''', (pret_id,)).fetchall()
+
     personnes = conn.execute(
         'SELECT * FROM personnes WHERE actif = 1 ORDER BY nom, prenom'
     ).fetchall()
     categories = conn.execute(
         'SELECT * FROM categories_materiel ORDER BY nom'
+    ).fetchall()
+    lieux = conn.execute(
+        'SELECT * FROM lieux WHERE actif = 1 ORDER BY nom'
     ).fetchall()
 
     conn.close()
@@ -2036,8 +2196,10 @@ def modifier_pret(pret_id):
     return render_template(
         'modifier_pret.html',
         pret=pret,
+        pret_items=pret_items,
         personnes=personnes,
         categories=categories,
+        lieux=lieux,
         duree_defaut=duree_defaut,
         unite_defaut=unite_defaut
     )
@@ -2051,10 +2213,19 @@ def modifier_pret(pret_id):
 @admin_required
 def supprimer_pret(pret_id):
     conn = get_db()
-    # Libérer le matériel lié si le prêt était en cours
     pret = conn.execute('SELECT materiel_id, retour_confirme FROM prets WHERE id = ?', (pret_id,)).fetchone()
-    if pret and pret['materiel_id'] and not pret['retour_confirme']:
-        conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+    if pret and not pret['retour_confirme']:
+        # Libérer multi-matériels
+        mats = conn.execute(
+            'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
+            (pret_id,)
+        ).fetchall()
+        for m in mats:
+            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
+        # Rétrocompat ancien champ
+        if pret['materiel_id']:
+            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+    conn.execute('DELETE FROM pret_materiels WHERE pret_id = ?', (pret_id,))
     conn.execute('DELETE FROM prets WHERE id = ?', (pret_id,))
     conn.commit()
     conn.close()
@@ -2642,6 +2813,189 @@ def imprimer_zebra():
                             'error': 'Module pyserial non installé. Exécutez : pip install pyserial'}), 500
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================
+#  GESTION DES LIEUX
+# ============================================================
+
+@app.route('/lieux', methods=['GET', 'POST'])
+@admin_required
+def gestion_lieux():
+    conn = get_db()
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        if action == 'ajouter':
+            nom = request.form.get('nom', '').strip()
+            if nom:
+                try:
+                    conn.execute('INSERT INTO lieux (nom) VALUES (?)', (nom,))
+                    conn.commit()
+                    flash(f'Lieu « {nom} » ajouté.', 'success')
+                except Exception:
+                    flash('Ce lieu existe déjà.', 'danger')
+        elif action == 'modifier':
+            lieu_id = request.form.get('lieu_id')
+            nom = request.form.get('nom', '').strip()
+            if lieu_id and nom:
+                conn.execute('UPDATE lieux SET nom = ? WHERE id = ?', (nom, lieu_id))
+                conn.commit()
+                flash('Lieu modifié.', 'success')
+        elif action == 'supprimer':
+            lieu_id = request.form.get('lieu_id')
+            if lieu_id:
+                # Vérifier s'il est utilisé
+                nb = conn.execute('SELECT COUNT(*) FROM prets WHERE lieu_id = ?', (lieu_id,)).fetchone()[0]
+                if nb > 0:
+                    conn.execute('UPDATE lieux SET actif = 0 WHERE id = ?', (lieu_id,))
+                    flash('Lieu masqué (utilisé dans des prêts existants).', 'warning')
+                else:
+                    conn.execute('DELETE FROM lieux WHERE id = ?', (lieu_id,))
+                    flash('Lieu supprimé.', 'success')
+                conn.commit()
+        conn.close()
+        return redirect(url_for('gestion_lieux'))
+
+    lieux = conn.execute('SELECT * FROM lieux ORDER BY actif DESC, nom').fetchall()
+    conn.close()
+    return render_template('lieux.html', lieux=lieux)
+
+
+# ============================================================
+#  SAUVEGARDE & RESTAURATION COMPLÈTE
+# ============================================================
+
+@app.route('/admin/sauvegarder')
+@admin_required
+def admin_sauvegarder():
+    """Exporter toute la base + uploads dans un fichier .pretgo (zip)."""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'PretGo_sauvegarde_{timestamp}.pretgo'
+    zip_path = os.path.join(BACKUP_DIR, filename)
+
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Base de données SQLite
+        if os.path.exists(DATABASE_PATH):
+            zf.write(DATABASE_PATH, 'gestion_prets.db')
+        # Images matériel
+        uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads', 'materiel')
+        if os.path.exists(uploads_dir):
+            for f in os.listdir(uploads_dir):
+                fpath = os.path.join(uploads_dir, f)
+                if os.path.isfile(fpath):
+                    zf.write(fpath, f'uploads/materiel/{f}')
+        # Documents (fiches de prêt)
+        if os.path.exists(DOCUMENTS_DIR):
+            for f in os.listdir(DOCUMENTS_DIR):
+                fpath = os.path.join(DOCUMENTS_DIR, f)
+                if os.path.isfile(fpath):
+                    zf.write(fpath, f'documents/{f}')
+        # Code de récupération
+        if os.path.exists(RECOVERY_CODE_PATH):
+            zf.write(RECOVERY_CODE_PATH, 'code_recuperation.txt')
+
+    # Envoyer en téléchargement
+    return send_file(zip_path, as_attachment=True, download_name=filename,
+                     mimetype='application/zip')
+
+
+@app.route('/admin/restaurer', methods=['POST'])
+@admin_required
+def admin_restaurer():
+    """Restaurer depuis un fichier .pretgo."""
+    if 'fichier_pretgo' not in request.files:
+        flash('Aucun fichier sélectionné.', 'danger')
+        return redirect(url_for('admin_reglages'))
+
+    fichier = request.files['fichier_pretgo']
+    if not fichier.filename.lower().endswith('.pretgo'):
+        flash('Veuillez sélectionner un fichier .pretgo valide.', 'danger')
+        return redirect(url_for('admin_reglages'))
+
+    try:
+        # Sauvegarder dans un temp
+        temp_path = os.path.join(BACKUP_DIR, 'restauration_temp.zip')
+        fichier.save(temp_path)
+
+        with zipfile.ZipFile(temp_path, 'r') as zf:
+            names = zf.namelist()
+            if 'gestion_prets.db' not in names:
+                flash('Fichier .pretgo invalide (base de données manquante).', 'danger')
+                os.remove(temp_path)
+                return redirect(url_for('admin_reglages'))
+
+            # Restaurer la base
+            zf.extract('gestion_prets.db', DATA_DIR)
+
+            # Restaurer les images
+            uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads', 'materiel')
+            os.makedirs(uploads_dir, exist_ok=True)
+            for name in names:
+                if name.startswith('uploads/materiel/'):
+                    fname = name.split('/')[-1]
+                    if fname:
+                        with zf.open(name) as src, open(os.path.join(uploads_dir, fname), 'wb') as dst:
+                            dst.write(src.read())
+                elif name.startswith('documents/'):
+                    fname = name.split('/')[-1]
+                    if fname:
+                        with zf.open(name) as src, open(os.path.join(DOCUMENTS_DIR, fname), 'wb') as dst:
+                            dst.write(src.read())
+                elif name == 'code_recuperation.txt':
+                    zf.extract(name, DATA_DIR)
+
+        os.remove(temp_path)
+        # Réinitialiser les migrations (s'assurer que les nouvelles colonnes existent)
+        init_db()
+        session.pop('admin_logged_in', None)
+        flash('Base restaurée avec succès ! Veuillez vous reconnecter.', 'success')
+        return redirect(url_for('admin_login'))
+
+    except Exception as e:
+        flash(f'Erreur lors de la restauration : {str(e)}', 'danger')
+        return redirect(url_for('admin_reglages'))
+
+
+# ============================================================
+#  FICHES DE PRÊT (IMPRIMABLES)
+# ============================================================
+
+@app.route('/pret/<int:pret_id>/fiche')
+def fiche_pret(pret_id):
+    """Générer une fiche de prêt pré-remplie imprimable."""
+    conn = get_db()
+    pret = conn.execute('''
+        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie,
+               l.nom AS lieu_nom
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        LEFT JOIN lieux l ON p.lieu_id = l.id
+        WHERE p.id = ?
+    ''', (pret_id,)).fetchone()
+
+    if not pret:
+        conn.close()
+        flash('Prêt non trouvé.', 'danger')
+        return redirect(url_for('index'))
+
+    pret_items = conn.execute('''
+        SELECT pm.*, inv.marque, inv.modele, inv.numero_inventaire, inv.numero_serie
+        FROM pret_materiels pm
+        LEFT JOIN inventaire inv ON pm.materiel_id = inv.id
+        WHERE pm.pret_id = ?
+    ''', (pret_id,)).fetchall()
+
+    conn.close()
+    nom_etablissement = get_setting('nom_etablissement', '')
+    return render_template('fiche_pret.html', pret=pret, pret_items=pret_items,
+                           nom_etablissement=nom_etablissement)
+
+
+@app.route('/fiche-vierge')
+def fiche_pret_vierge():
+    """Fiche de prêt vierge avec champs à remplir manuellement."""
+    nom_etablissement = get_setting('nom_etablissement', '')
+    return render_template('fiche_pret_vierge.html', nom_etablissement=nom_etablissement)
 
 
 # ============================================================

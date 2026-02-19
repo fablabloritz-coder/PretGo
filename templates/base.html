@@ -77,8 +77,15 @@
                                 <i class="bi bi-tags"></i> Catégories matériel</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('categories_personnes_admin') }}">
                                 <i class="bi bi-person-lines-fill"></i> Catégories personnes</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('gestion_lieux') }}">
+                                <i class="bi bi-geo-alt"></i> Lieux de prêt</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin_reglages') }}">
                                 <i class="bi bi-gear"></i> Réglages</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('fiche_pret_vierge') }}" target="_blank">
+                                <i class="bi bi-file-earmark-text"></i> Fiche de prêt vierge</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_sauvegarder') }}">
+                                <i class="bi bi-download"></i> Sauvegarder (.pretgo)</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="{{ url_for('admin_logout') }}">
                                 <i class="bi bi-box-arrow-right"></i> Déconnexion</a></li>

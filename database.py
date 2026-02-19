@@ -123,6 +123,22 @@ def init_db():
             ordre INTEGER DEFAULT 0,
             actif INTEGER DEFAULT 1
         );
+
+        CREATE TABLE IF NOT EXISTS pret_materiels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pret_id INTEGER NOT NULL,
+            materiel_id INTEGER DEFAULT NULL,
+            description TEXT NOT NULL,
+            FOREIGN KEY (pret_id) REFERENCES prets(id) ON DELETE CASCADE,
+            FOREIGN KEY (materiel_id) REFERENCES inventaire(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS lieux (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE,
+            actif INTEGER DEFAULT 1,
+            date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
     ''')
 
     # ── Migrations colonnes prets ──
@@ -130,6 +146,7 @@ def init_db():
         ('duree_pret_jours', 'INTEGER DEFAULT NULL'),
         ('duree_pret_heures', 'REAL DEFAULT NULL'),
         ('materiel_id', 'INTEGER DEFAULT NULL'),
+        ('lieu_id', 'INTEGER DEFAULT NULL'),
     ]:
         try:
             cursor.execute(f'ALTER TABLE prets ADD COLUMN {col} {default}')
@@ -183,6 +200,17 @@ def init_db():
                    VALUES (?, ?, ?, ?, ?, ?)''',
                 (cle, libelle, icone, bg, txt, ordre)
             )
+        except sqlite3.IntegrityError:
+            pass
+
+    # Lieux par défaut
+    lieux_defaut = [
+        'Salle informatique', 'CDI', 'Salle de réunion',
+        'Bureau administratif', 'Atelier', 'Gymnase',
+    ]
+    for nom_lieu in lieux_defaut:
+        try:
+            cursor.execute('INSERT INTO lieux (nom) VALUES (?)', (nom_lieu,))
         except sqlite3.IntegrityError:
             pass
 
@@ -249,13 +277,24 @@ def init_db():
 
 
 def reset_db():
-    """Réinitialiser complètement la base de données (supprime tout)."""
+    """Réinitialiser complètement la base de données (supprime tout).
+    Note : le dossier data/documents/ est préservé (fiches de prêt)."""
+    # Préserver le dossier documents
     if os.path.exists(DATABASE_PATH):
         os.remove(DATABASE_PATH)
     # Supprimer aussi le code de récupération pour en régénérer un nouveau
     if os.path.exists(RECOVERY_CODE_PATH):
         os.remove(RECOVERY_CODE_PATH)
     init_db()
+
+
+# Dossier pour les fiches de prêt générées (préservé lors du reset)
+DOCUMENTS_DIR = os.path.join(DATA_DIR, 'documents')
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
+# Dossier pour les sauvegardes
+BACKUP_DIR = os.path.join(DATA_DIR, 'sauvegardes')
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
 
 def get_setting(cle, default=None):
