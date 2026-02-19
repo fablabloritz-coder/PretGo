@@ -41,7 +41,7 @@
 
                 <div id="items-container">
                     <!-- Item 1 (par défaut) -->
-                    <div class="item-row mb-2" data-index="0">
+                    <div class="item-row mb-2 position-relative" data-index="0">
                         <div class="input-group">
                             <input type="text"
                                    name="items_description[]"
@@ -50,9 +50,11 @@
                                    autocomplete="off"
                                    required>
                             <input type="hidden" name="items_materiel_id[]" class="item-materiel-id" value="">
+                            {% if mode_scanner != 'douchette' %}
                             <button type="button" class="btn btn-outline-info btn-scan-item" title="Scanner un code-barres">
                                 <i class="bi bi-upc-scan"></i>
                             </button>
+                            {% endif %}
                             <button type="button" class="btn btn-outline-danger btn-remove-item" title="Retirer" style="display:none">
                                 <i class="bi bi-x-lg"></i>
                             </button>
@@ -226,6 +228,7 @@
     </div>
 </div>
 
+{% if mode_scanner != 'douchette' %}
 <!-- Modal Scanner -->
 <div class="modal fade" id="modalScanner" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -241,10 +244,13 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if mode_scanner != 'douchette' %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endif %}
 <script>
 // ── Date/heure en temps réel ──
 function updateDateTime() {
@@ -289,7 +295,7 @@ function toggleDuree() {
     // Ajouter un item
     btnAdd.addEventListener('click', function() {
         const row = document.createElement('div');
-        row.className = 'item-row mb-2';
+        row.className = 'item-row mb-2 position-relative';
         row.dataset.index = itemIndex;
         row.innerHTML = `
             <div class="input-group">
@@ -298,9 +304,11 @@ function toggleDuree() {
                        placeholder="N° inventaire, marque, modèle ou texte libre..."
                        autocomplete="off" required>
                 <input type="hidden" name="items_materiel_id[]" class="item-materiel-id" value="">
+                {% if mode_scanner != 'douchette' %}
                 <button type="button" class="btn btn-outline-info btn-scan-item" title="Scanner un code-barres">
                     <i class="bi bi-upc-scan"></i>
                 </button>
+                {% endif %}
                 <button type="button" class="btn btn-outline-danger btn-remove-item" title="Retirer">
                     <i class="bi bi-x-lg"></i>
                 </button>
@@ -354,6 +362,16 @@ function toggleDuree() {
         }
     });
 
+    // Intercepter Entrée sur les champs item (évite soumission du form + recherche immédiate)
+    container.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.classList.contains('item-input')) {
+            e.preventDefault();
+            const row = e.target.closest('.item-row');
+            const val = e.target.value.trim();
+            if (val.length >= 2) searchInventaire(row, val);
+        }
+    });
+
     function searchInventaire(row, query) {
         fetch('{{ url_for("api_inventaire") }}?q=' + encodeURIComponent(query))
             .then(r => r.json())
@@ -384,7 +402,8 @@ function toggleDuree() {
                     sp.className = 'flex-grow-1'; sp.textContent = label;
                     div.appendChild(sp);
                     const bd = document.createElement('span');
-                    bd.className = 'badge bg-success'; bd.textContent = 'Inventaire';
+                    bd.className = 'badge ' + (item.etat === 'disponible' ? 'bg-success' : 'bg-secondary');
+                    bd.textContent = item.etat === 'disponible' ? 'Disponible' : item.etat;
                     div.appendChild(bd);
                     div.addEventListener('click', () => {
                         row.querySelector('.item-input').value = label;
@@ -400,6 +419,7 @@ function toggleDuree() {
     }
 
     // ── Scanner code-barres ──
+    {% if mode_scanner != 'douchette' %}
     function openScanner() {
         const modal = new bootstrap.Modal(document.getElementById('modalScanner'));
         modal.show();
@@ -429,6 +449,7 @@ function toggleDuree() {
     document.getElementById('modalScanner').addEventListener('hidden.bs.modal', function() {
         if (html5QrCode) try { html5QrCode.stop(); } catch(e) {}
     });
+    {% endif %}
 
     // ── Modal d'engagement ──
     document.getElementById('btn-valider-pret').addEventListener('click', function() {

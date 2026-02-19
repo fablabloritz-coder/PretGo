@@ -6,30 +6,30 @@
     <title>Fiche de prêt vierge - PretGo</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #333; padding: 20mm; }
-        .header { text-align: center; border-bottom: 3px solid #0d6efd; padding-bottom: 15px; margin-bottom: 25px; }
-        .header h1 { font-size: 24px; color: #0d6efd; margin-bottom: 5px; }
-        .header .etablissement { font-size: 16px; color: #666; }
-        .section { margin-bottom: 20px; }
-        .section h2 { font-size: 16px; background: #f0f4f8; padding: 8px 12px; border-left: 4px solid #0d6efd; margin-bottom: 12px; }
-        .field { display: flex; margin-bottom: 12px; align-items: flex-end; }
-        .field .label { width: 180px; font-weight: bold; color: #555; flex-shrink: 0; }
-        .field .value { flex: 1; border-bottom: 1px solid #999; min-height: 24px; }
-        table.items { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        table.items th { background: #f0f4f8; padding: 10px 8px; text-align: left; font-size: 13px; border: 1px solid #ddd; }
-        table.items td { padding: 10px 8px; border: 1px solid #ddd; height: 30px; }
-        .engagement { border: 2px solid #0d6efd; border-radius: 8px; padding: 15px; margin: 25px 0; background: #f8f9ff; }
-        .engagement p { font-size: 13px; line-height: 1.5; }
-        .signatures { display: flex; gap: 40px; margin-top: 30px; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #333; padding: 12mm; }
+        .header { text-align: center; border-bottom: 3px solid #0d6efd; padding-bottom: 10px; margin-bottom: 15px; }
+        .header h1 { font-size: 20px; color: #0d6efd; margin-bottom: 3px; }
+        .header .etablissement { font-size: 14px; color: #666; }
+        .section { margin-bottom: 12px; }
+        .section h2 { font-size: 14px; background: #f0f4f8; padding: 5px 10px; border-left: 4px solid #0d6efd; margin-bottom: 8px; }
+        .field { display: flex; margin-bottom: 8px; align-items: flex-end; }
+        .field .label { width: 160px; font-weight: bold; color: #555; flex-shrink: 0; font-size: 12px; }
+        .field .value { flex: 1; border-bottom: 1px solid #999; min-height: 20px; }
+        table.items { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        table.items th { background: #f0f4f8; padding: 6px 8px; text-align: left; font-size: 12px; border: 1px solid #ddd; }
+        table.items td { padding: 6px 8px; border: 1px solid #ddd; height: 24px; }
+        .engagement { border: 2px solid #0d6efd; border-radius: 6px; padding: 10px; margin: 15px 0; background: #f8f9ff; }
+        .engagement p { font-size: 11px; line-height: 1.4; }
+        .signatures { display: flex; gap: 30px; margin-top: 15px; }
         .signatures .sig-box { flex: 1; text-align: center; }
-        .signatures .sig-box .sig-label { font-weight: bold; margin-bottom: 5px; font-size: 13px; }
-        .signatures .sig-box .sig-area { border: 1px solid #ccc; height: 80px; border-radius: 4px; background: #fafafa; }
-        .signatures .sig-box .sig-date { font-size: 11px; color: #888; margin-top: 5px; }
-        .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+        .signatures .sig-box .sig-label { font-weight: bold; margin-bottom: 3px; font-size: 11px; }
+        .signatures .sig-box .sig-area { border: 1px solid #ccc; height: 55px; border-radius: 4px; background: #fafafa; }
+        .signatures .sig-box .sig-date { font-size: 10px; color: #888; margin-top: 3px; }
+        .footer { text-align: center; margin-top: 15px; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 5px; }
         @media print {
-            body { padding: 10mm; }
+            body { padding: 8mm; }
             .no-print { display: none !important; }
-            @page { margin: 10mm; }
+            @page { size: A4; margin: 8mm; }
         }
     </style>
 </head>
@@ -130,9 +130,9 @@
         </div>
     </div>
 
-    <hr style="margin-top:30px; border: 1px dashed #ccc;">
+    <hr style="margin-top:15px; border: 1px dashed #ccc;">
 
-    <div class="section" style="margin-top:20px;">
+    <div class="section" style="margin-top:12px;">
         <h2>Retour du matériel</h2>
         <div class="field">
             <div class="label">Date de retour :</div>
@@ -142,7 +142,7 @@
             <div class="label">État du matériel :</div>
             <div class="value"></div>
         </div>
-        <div class="signatures" style="margin-top:15px;">
+        <div class="signatures" style="margin-top:10px;">
             <div class="sig-box">
                 <div class="sig-label">Signature de l'emprunteur</div>
                 <div class="sig-area"></div>

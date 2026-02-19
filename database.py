@@ -232,11 +232,13 @@ def init_db():
         'impression_etiquette_hauteur': '25',
         'impression_colonnes': '4',
         'impression_lignes': '11',
-        'impression_police': 'Courier New',
+        'impression_police': 'Arial',
         'impression_taille_barcode': '60',
         'impression_taille_texte': '8',
         'impression_taille_sous_texte': '6',
         'impression_texte_libre': '',
+        # ── Scanner de codes-barres ──
+        'mode_scanner': 'les_deux',
     }
     for cle, valeur in parametres_defaut.items():
         try:

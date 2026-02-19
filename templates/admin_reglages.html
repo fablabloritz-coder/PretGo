@@ -440,6 +440,58 @@
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3">
                 <h5 class="mb-0">
+                    <i class="bi bi-upc-scan text-info"></i>
+                    Mode de scan des codes-barres
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted">
+                    Choisissez comment scanner les codes-barres lors des prêts.
+                </p>
+                <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <input type="hidden" name="action" value="mode_scanner">
+                    <div class="mb-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="mode_scanner" id="scanner_les_deux"
+                                   value="les_deux" {{ 'checked' if mode_scanner == 'les_deux' }}>
+                            <label class="form-check-label" for="scanner_les_deux">
+                                <i class="bi bi-camera-video"></i> <i class="bi bi-plus"></i> <i class="bi bi-usb-plug"></i>
+                                <strong>Les deux</strong> (webcam + douchette USB)
+                            </label>
+                            <div class="form-text">Recommandé. Le bouton scanner webcam est visible et la douchette USB fonctionne dans le champ texte.</div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="mode_scanner" id="scanner_webcam"
+                                   value="webcam" {{ 'checked' if mode_scanner == 'webcam' }}>
+                            <label class="form-check-label" for="scanner_webcam">
+                                <i class="bi bi-camera-video"></i>
+                                <strong>Webcam uniquement</strong>
+                            </label>
+                            <div class="form-text">Utilise la caméra de l'appareil pour lire les codes-barres.</div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="mode_scanner" id="scanner_douchette"
+                                   value="douchette" {{ 'checked' if mode_scanner == 'douchette' }}>
+                            <label class="form-check-label" for="scanner_douchette">
+                                <i class="bi bi-usb-plug"></i>
+                                <strong>Douchette USB uniquement</strong>
+                            </label>
+                            <div class="form-text">Scanner USB qui envoie le code comme du texte clavier. Le bouton webcam est masqué.</div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-lg"></i> Enregistrer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sauvegarde et Restauration (suite) -->
+    <div class="col-12 col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
                     <i class="bi bi-hdd-fill text-success"></i>
                     Sauvegarde & Restauration
                 </h5>

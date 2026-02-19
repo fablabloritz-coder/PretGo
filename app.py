@@ -61,6 +61,30 @@ def format_date(value):
         return value
 
 
+@app.template_filter('format_date_court')
+def format_date_court(value):
+    """Formate une date en format français court (JJ/MM/AAAA)."""
+    if not value:
+        return '—'
+    try:
+        dt = datetime.strptime(str(value)[:19], '%Y-%m-%d %H:%M:%S')
+        return dt.strftime('%d/%m/%Y')
+    except Exception:
+        return str(value)[:10]
+
+
+@app.template_filter('format_heure')
+def format_heure(value):
+    """Extrait l'heure d'une date (HH:MM)."""
+    if not value:
+        return ''
+    try:
+        dt = datetime.strptime(str(value)[:19], '%Y-%m-%d %H:%M:%S')
+        return dt.strftime('%H:%M')
+    except Exception:
+        return str(value)[11:16]
+
+
 @app.template_filter('jours_ecoules')
 def jours_ecoules(date_str):
     """Calcule le nombre de jours écoulés depuis une date."""
@@ -407,7 +431,8 @@ def nouveau_pret():
         inventaire=inventaire,
         lieux=lieux,
         duree_defaut=duree_defaut,
-        unite_defaut=unite_defaut
+        unite_defaut=unite_defaut,
+        mode_scanner=get_setting('mode_scanner', 'les_deux')
     )
 
 
@@ -1605,7 +1630,7 @@ def admin_reglages():
             set_setting('impression_etiquette_hauteur', request.form.get('impression_etiquette_hauteur', '25'))
             set_setting('impression_colonnes', request.form.get('impression_colonnes', '4'))
             set_setting('impression_lignes', request.form.get('impression_lignes', '11'))
-            set_setting('impression_police', request.form.get('impression_police', 'Courier New'))
+            set_setting('impression_police', request.form.get('impression_police', 'Arial'))
             set_setting('impression_taille_barcode', request.form.get('impression_taille_barcode', '60'))
             set_setting('impression_taille_texte', request.form.get('impression_taille_texte', '8'))
             set_setting('impression_taille_sous_texte', request.form.get('impression_taille_sous_texte', '6'))
@@ -1616,6 +1641,15 @@ def admin_reglages():
             nom_etab = request.form.get('nom_etablissement', '').strip()
             set_setting('nom_etablissement', nom_etab)
             flash('Nom de l\'établissement enregistré.', 'success')
+
+        elif action == 'mode_scanner':
+            mode = request.form.get('mode_scanner', 'les_deux')
+            if mode in ('webcam', 'douchette', 'les_deux'):
+                set_setting('mode_scanner', mode)
+                labels = {'webcam': 'Webcam uniquement', 'douchette': 'Douchette USB uniquement', 'les_deux': 'Webcam + Douchette'}
+                flash(f'Mode de scan : {labels[mode]}.', 'success')
+            else:
+                flash('Mode de scanner invalide.', 'danger')
 
         return redirect(url_for('admin_reglages'))
 
@@ -1636,11 +1670,12 @@ def admin_reglages():
                            imp_hauteur=get_setting('impression_etiquette_hauteur', '25'),
                            imp_colonnes=get_setting('impression_colonnes', '4'),
                            imp_lignes=get_setting('impression_lignes', '11'),
-                           imp_police=get_setting('impression_police', 'Courier New'),
+                           imp_police=get_setting('impression_police', 'Arial'),
                            imp_taille_barcode=get_setting('impression_taille_barcode', '60'),
                            imp_taille_texte=get_setting('impression_taille_texte', '8'),
                            imp_taille_sous_texte=get_setting('impression_taille_sous_texte', '6'),
-                           imp_texte_libre=get_setting('impression_texte_libre', ''))
+                           imp_texte_libre=get_setting('impression_texte_libre', ''),
+                           mode_scanner=get_setting('mode_scanner', 'les_deux'))
 
 
 # ============================================================
@@ -2201,7 +2236,8 @@ def modifier_pret(pret_id):
         categories=categories,
         lieux=lieux,
         duree_defaut=duree_defaut,
-        unite_defaut=unite_defaut
+        unite_defaut=unite_defaut,
+        mode_scanner=get_setting('mode_scanner', 'les_deux')
     )
 
 
@@ -2513,6 +2549,59 @@ def historique_materiel(mat_id):
                            materiel=materiel, prets=prets, stats=stats)
 
 
+# ============================================================
+#  HISTORIQUE D'UNE PERSONNE (emprunts)
+# ============================================================
+
+@app.route('/personnes/historique/<int:personne_id>')
+def historique_personne(personne_id):
+    """Affiche l'historique chronologique de tous les emprunts d'une personne."""
+    conn = get_db()
+
+    personne = conn.execute(
+        'SELECT * FROM personnes WHERE id = ?', (personne_id,)
+    ).fetchone()
+
+    if not personne:
+        conn.close()
+        flash('Personne non trouvée.', 'danger')
+        return redirect(url_for('personnes'))
+
+    # Tous les prêts de cette personne, du plus récent au plus ancien
+    prets = conn.execute('''
+        SELECT p.*, l.nom AS lieu_nom
+        FROM prets p
+        LEFT JOIN lieux l ON p.lieu_id = l.id
+        WHERE p.personne_id = ?
+        ORDER BY p.date_emprunt DESC
+    ''', (personne_id,)).fetchall()
+
+    # Pour chaque prêt, récupérer les items (pret_materiels)
+    prets_data = []
+    for pret in prets:
+        items = conn.execute('''
+            SELECT pm.description, pm.materiel_id, i.numero_inventaire, i.marque, i.modele
+            FROM pret_materiels pm
+            LEFT JOIN inventaire i ON pm.materiel_id = i.id
+            WHERE pm.pret_id = ?
+        ''', (pret['id'],)).fetchall()
+        prets_data.append({
+            'pret': pret,
+            'materiels': items if items else [],
+        })
+
+    # Statistiques rapides
+    stats = {
+        'total': len(prets),
+        'en_cours': sum(1 for p in prets if not p['retour_confirme']),
+        'retournes': sum(1 for p in prets if p['retour_confirme']),
+    }
+
+    conn.close()
+    return render_template('historique_personne.html',
+                           personne=personne, prets_data=prets_data, stats=stats)
+
+
 @app.route('/inventaire/importer', methods=['GET', 'POST'])
 @admin_required
 def importer_inventaire():
@@ -2659,16 +2748,17 @@ def api_inventaire():
     q = request.args.get('q', '').strip()
     if q:
         items = conn.execute('''
-            SELECT id, type_materiel, marque, modele, numero_inventaire, numero_serie, image
-            FROM inventaire WHERE actif = 1 AND etat = 'disponible'
+            SELECT id, type_materiel, marque, modele, numero_inventaire, numero_serie, image, etat
+            FROM inventaire WHERE actif = 1
             AND (numero_inventaire LIKE ? OR marque LIKE ? OR modele LIKE ?
-                 OR type_materiel LIKE ? OR notes LIKE ?)
-            ORDER BY type_materiel, numero_inventaire LIMIT 20
-        ''', (f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%')).fetchall()
+                 OR type_materiel LIKE ? OR notes LIKE ? OR numero_serie LIKE ?)
+            ORDER BY CASE WHEN etat = 'disponible' THEN 0 ELSE 1 END,
+                     type_materiel, numero_inventaire LIMIT 20
+        ''', (f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%')).fetchall()
     else:
         items = conn.execute('''
-            SELECT id, type_materiel, marque, modele, numero_inventaire, numero_serie, image
-            FROM inventaire WHERE actif = 1 AND etat = 'disponible'
+            SELECT id, type_materiel, marque, modele, numero_inventaire, numero_serie, image, etat
+            FROM inventaire WHERE actif = 1
             ORDER BY type_materiel, numero_inventaire
         ''').fetchall()
     conn.close()
@@ -2722,7 +2812,7 @@ def imprimer_etiquettes():
     hauteur = int(get_setting('impression_etiquette_hauteur', '25'))
     colonnes = int(get_setting('impression_colonnes', '4'))
     lignes = int(get_setting('impression_lignes', '11'))
-    police = get_setting('impression_police', 'Courier New')
+    police = get_setting('impression_police', 'Arial')
     taille_barcode = int(get_setting('impression_taille_barcode', '60'))
     taille_texte = int(get_setting('impression_taille_texte', '8'))
     taille_sous_texte = int(get_setting('impression_taille_sous_texte', '6'))
