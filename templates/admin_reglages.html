@@ -14,6 +14,32 @@
 <div class="row g-4">
     <!-- Durées & alertes -->
     <div class="col-12 col-md-6">
+            <!-- Bip sonore du scan webcam -->
+            <div class="col-12 col-md-6 mb-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">
+                            <i class="bi bi-volume-up text-primary"></i>
+                            Bip sonore du scan webcam
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <p class="text-muted mb-4">
+                            Un bip est joué à chaque scan réussi avec la webcam. Vous pouvez tester le son ici et ajuster le volume.
+                        </p>
+                        <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+                            <button type="button" class="btn btn-outline-primary" id="btn-test-bip">
+                                <i class="bi bi-play-circle"></i> Tester le bip
+                            </button>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="bip-volume" class="form-label mb-0">Volume</label>
+                                <input type="range" min="0" max="100" value="15" id="bip-volume" style="width:120px;">
+                            </div>
+                        </div>
+                        <div class="form-text mt-2">Le volume du bip s'appliquera à tous les scans webcam.<br>Pour personnaliser le son, contactez l'administrateur.</div>
+                    </div>
+                </div>
+            </div>
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3">
                 <h5 class="mb-0">
@@ -380,6 +406,33 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script>
+    // Bip sonore testable et volume réglable
+    let bipVolume = 0.15;
+    function playBeep(vol) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.value = 1200;
+            g.gain.value = (typeof vol === 'number' ? vol : bipVolume);
+            o.connect(g); g.connect(ctx.destination);
+            o.start();
+            setTimeout(() => { o.stop(); ctx.close(); }, 120);
+        } catch(e) {}
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('btn-test-bip');
+        const slider = document.getElementById('bip-volume');
+        if (btn && slider) {
+            btn.addEventListener('click', function() { playBeep(bipVolume); });
+            slider.addEventListener('input', function() {
+                bipVolume = Math.max(0, Math.min(1, this.value/100));
+            });
+        }
+    });
+    </script>
     <script>
     function toggleZebra() {
         document.getElementById('zebraSettings').style.display =
