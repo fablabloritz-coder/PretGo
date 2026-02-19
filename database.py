@@ -1,0 +1,274 @@
+"""
+Module de gestion de la base de données SQLite.
+Toutes les données sont stockées localement dans le dossier 'data/'.
+"""
+
+import sqlite3
+import os
+import hashlib
+import secrets
+import string
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# Chemin vers le fichier de base de données
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+DATABASE_PATH = os.path.join(DATA_DIR, 'gestion_prets.db')
+RECOVERY_CODE_PATH = os.path.join(DATA_DIR, 'code_recuperation.txt')
+
+
+def get_db():
+    """Obtenir une connexion à la base de données."""
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def hash_password(password):
+    """Hasher un mot de passe avec werkzeug (scrypt/pbkdf2)."""
+    return generate_password_hash(password)
+
+
+def verify_password(password, stored_hash):
+    """Vérifie un mot de passe contre un hash stocké. Supporte l'ancien format SHA-256."""
+    if stored_hash and stored_hash.startswith(('scrypt:', 'pbkdf2:')):
+        return check_password_hash(stored_hash, password)
+    # Rétrocompatibilité avec l'ancien hachage SHA-256
+    return stored_hash == hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+
+def generate_recovery_code():
+    """Générer un code de récupération aléatoire et le sauvegarder."""
+    alphabet = string.ascii_uppercase + string.digits
+    code = '-'.join(''.join(secrets.choice(alphabet) for _ in range(4)) for _ in range(4))
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(RECOVERY_CODE_PATH, 'w', encoding='utf-8') as f:
+        f.write("╔══════════════════════════════════════════════════╗\n")
+        f.write("║     CODE DE RÉCUPÉRATION ADMINISTRATEUR         ║\n")
+        f.write("╠══════════════════════════════════════════════════╣\n")
+        f.write(f"║  Code : {code}                     ║\n")
+        f.write("╠══════════════════════════════════════════════════╣\n")
+        f.write("║  Conservez ce fichier en lieu sûr !              ║\n")
+        f.write("║  Il permet de réinitialiser le mot de passe      ║\n")
+        f.write("║  administrateur en cas d'oubli.                  ║\n")
+        f.write("╚══════════════════════════════════════════════════╝\n")
+    return code
+
+
+def init_db():
+    """Initialiser la base de données avec les tables nécessaires."""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.executescript('''
+        CREATE TABLE IF NOT EXISTS personnes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            prenom TEXT NOT NULL,
+            categorie TEXT NOT NULL,
+            classe TEXT DEFAULT '',
+            actif INTEGER DEFAULT 1,
+            date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS prets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            personne_id INTEGER NOT NULL,
+            descriptif_objets TEXT NOT NULL,
+            date_emprunt DATETIME NOT NULL,
+            date_retour DATETIME,
+            retour_confirme INTEGER DEFAULT 0,
+            signature_retour TEXT,
+            notes TEXT DEFAULT '',
+            duree_pret_jours INTEGER DEFAULT NULL,
+            duree_pret_heures REAL DEFAULT NULL,
+            materiel_id INTEGER DEFAULT NULL,
+            date_modification DATETIME DEFAULT NULL,
+            FOREIGN KEY (personne_id) REFERENCES personnes(id),
+            FOREIGN KEY (materiel_id) REFERENCES inventaire(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS categories_materiel (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE
+        );
+
+        CREATE TABLE IF NOT EXISTS parametres (
+            cle TEXT PRIMARY KEY,
+            valeur TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS inventaire (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type_materiel TEXT NOT NULL,
+            marque TEXT DEFAULT '',
+            modele TEXT DEFAULT '',
+            numero_serie TEXT DEFAULT '',
+            numero_inventaire TEXT NOT NULL UNIQUE,
+            systeme_exploitation TEXT DEFAULT '',
+            etat TEXT DEFAULT 'disponible',
+            notes TEXT DEFAULT '',
+            actif INTEGER DEFAULT 1,
+            date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS categories_personnes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cle TEXT NOT NULL UNIQUE,
+            libelle TEXT NOT NULL,
+            icone TEXT DEFAULT 'bi-person',
+            couleur_bg TEXT DEFAULT '#f1f3f4',
+            couleur_text TEXT DEFAULT '#5f6368',
+            ordre INTEGER DEFAULT 0,
+            actif INTEGER DEFAULT 1
+        );
+    ''')
+
+    # ── Migrations colonnes prets ──
+    for col, default in [
+        ('duree_pret_jours', 'INTEGER DEFAULT NULL'),
+        ('duree_pret_heures', 'REAL DEFAULT NULL'),
+        ('materiel_id', 'INTEGER DEFAULT NULL'),
+    ]:
+        try:
+            cursor.execute(f'ALTER TABLE prets ADD COLUMN {col} {default}')
+        except sqlite3.OperationalError:
+            pass
+
+    # ── Migration colonne image pour inventaire ──
+    try:
+        cursor.execute("ALTER TABLE inventaire ADD COLUMN image TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # ── Migration colonne prefixe_inventaire pour catégories matériel ──
+    try:
+        cursor.execute("ALTER TABLE categories_materiel ADD COLUMN prefixe_inventaire TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # Catégories de matériel par défaut
+    categories_defaut = [
+        ('Informatique', 'PC'),
+        ('Audio/Vidéo', 'AV'),
+        ('Sport', 'SPT'),
+        ('Livres', 'LIV'),
+        ('Outils', 'OUT'),
+        ('Fournitures', 'FRN'),
+        ('Réseau', 'NET'),
+        ('Autre', 'DIV'),
+    ]
+    for nom, prefixe in categories_defaut:
+        try:
+            cursor.execute('INSERT INTO categories_materiel (nom, prefixe_inventaire) VALUES (?, ?)', (nom, prefixe))
+        except sqlite3.IntegrityError:
+            # Mettre à jour le préfixe si la catégorie existe déjà sans préfixe
+            cursor.execute(
+                "UPDATE categories_materiel SET prefixe_inventaire = ? WHERE nom = ? AND (prefixe_inventaire IS NULL OR prefixe_inventaire = '')",
+                (prefixe, nom)
+            )
+
+    # Catégories de personnes par défaut
+    categories_personnes_defaut = [
+        ('eleve', 'Élève', 'bi-mortarboard', '#e8f0fe', '#1a73e8', 1),
+        ('enseignant', 'Enseignant', 'bi-person-workspace', '#e6f4ea', '#0d904f', 2),
+        ('agent', 'Agent', 'bi-person-badge', '#fef7e0', '#ea8600', 3),
+        ('non_enseignant', 'Non enseignant', 'bi-person', '#f1f3f4', '#5f6368', 4),
+    ]
+    for cle, libelle, icone, bg, txt, ordre in categories_personnes_defaut:
+        try:
+            cursor.execute(
+                '''INSERT INTO categories_personnes (cle, libelle, icone, couleur_bg, couleur_text, ordre)
+                   VALUES (?, ?, ?, ?, ?, ?)''',
+                (cle, libelle, icone, bg, txt, ordre)
+            )
+        except sqlite3.IntegrityError:
+            pass
+
+    # Paramètres par défaut
+    parametres_defaut = {
+        'duree_alerte_defaut': '7',
+        'duree_alerte_unite': 'jours',
+        'admin_password': hash_password('1234'),
+        'password_changed': '0',
+        # ── Impression d'étiquettes ──
+        'impression_zebra_active': '0',
+        'impression_zebra_methode': 'serial',
+        'impression_port': 'COM3',
+        'impression_baud': '38400',
+        'impression_tearoff': '018',
+        'impression_zebra_url': 'http://localhost:9100',
+        'impression_zpl_template': '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ',
+        'impression_etiquette_largeur': '51',
+        'impression_etiquette_hauteur': '25',
+        'impression_colonnes': '4',
+        'impression_lignes': '11',
+        'impression_police': 'Courier New',
+        'impression_taille_barcode': '60',
+        'impression_taille_texte': '8',
+        'impression_taille_sous_texte': '6',
+        'impression_texte_libre': '',
+    }
+    for cle, valeur in parametres_defaut.items():
+        try:
+            cursor.execute('INSERT INTO parametres (cle, valeur) VALUES (?, ?)', (cle, valeur))
+        except sqlite3.IntegrityError:
+            pass
+
+    # ── Migration : anciennes installations ──
+    # Si password_changed n'existait pas avant (vient d'être inséré), c'est une
+    # ancienne installation. On remet le mot de passe par défaut pour forcer la
+    # personnalisation au prochain lancement.
+    row = cursor.execute(
+        "SELECT valeur FROM parametres WHERE cle = 'password_changed'"
+    ).fetchone()
+    if row and row[0] == '0':
+        # Vérifier si l'ancien mot de passe est différent de '1234'
+        # (= installation existante qui avait un autre mot de passe)
+        old_hash = cursor.execute(
+            "SELECT valeur FROM parametres WHERE cle = 'admin_password'"
+        ).fetchone()
+        if old_hash and not verify_password('1234', old_hash[0]):
+            cursor.execute(
+                "UPDATE parametres SET valeur = ? WHERE cle = 'admin_password'",
+                (hash_password('1234'),)
+            )
+            # Supprimer l'ancien code de récupération (sera régénéré)
+            cursor.execute(
+                "DELETE FROM parametres WHERE cle = 'recovery_code_hash'"
+            )
+            if os.path.exists(RECOVERY_CODE_PATH):
+                os.remove(RECOVERY_CODE_PATH)
+
+    conn.commit()
+    conn.close()
+
+    # Note : le code de récupération sera généré lors de la première
+    # personnalisation du mot de passe par l'utilisateur.
+
+
+def reset_db():
+    """Réinitialiser complètement la base de données (supprime tout)."""
+    if os.path.exists(DATABASE_PATH):
+        os.remove(DATABASE_PATH)
+    # Supprimer aussi le code de récupération pour en régénérer un nouveau
+    if os.path.exists(RECOVERY_CODE_PATH):
+        os.remove(RECOVERY_CODE_PATH)
+    init_db()
+
+
+def get_setting(cle, default=None):
+    """Récupérer un paramètre de la base."""
+    conn = get_db()
+    row = conn.execute('SELECT valeur FROM parametres WHERE cle = ?', (cle,)).fetchone()
+    conn.close()
+    return row['valeur'] if row else default
+
+
+def set_setting(cle, valeur):
+    """Modifier ou créer un paramètre."""
+    conn = get_db()
+    conn.execute('INSERT OR REPLACE INTO parametres (cle, valeur) VALUES (?, ?)', (cle, str(valeur)))
+    conn.commit()
+    conn.close()

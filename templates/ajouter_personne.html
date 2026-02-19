@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Ajouter une personne - Gestion de Prêts{% endblock %}
+
+{% block content %}
+<h1 class="page-title">
+    <i class="bi bi-person-plus-fill text-primary"></i> Ajouter une personne
+</h1>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('ajouter_personne') }}">
+
+            <div class="row g-4">
+                <div class="col-12 col-md-6">
+                    <label for="nom" class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
+                    <input type="text"
+                           id="nom"
+                           name="nom"
+                           class="form-control form-control-lg"
+                           placeholder="Ex : DUPONT"
+                           required
+                           style="text-transform: uppercase">
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="prenom" class="form-label fw-bold">Prénom <span class="text-danger">*</span></label>
+                    <input type="text"
+                           id="prenom"
+                           name="prenom"
+                           class="form-control form-control-lg"
+                           placeholder="Ex : Marie"
+                           required>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="categorie" class="form-label fw-bold">Catégorie <span class="text-danger">*</span></label>
+                    <select id="categorie" name="categorie" class="form-select form-select-lg" required>
+                        <option value="">-- Choisir --</option>
+                        {% for cat in cats_personnes %}
+                        <option value="{{ cat.cle }}">{{ cat.libelle }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="classe" class="form-label fw-bold">Classe</label>
+                    <input type="text"
+                           id="classe"
+                           name="classe"
+                           class="form-control form-control-lg"
+                           placeholder="Ex : 3A, Terminale B...">
+                    <small class="text-muted">Optionnel, surtout utile pour les élèves</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex gap-3">
+                <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                    <i class="bi bi-check-lg"></i> Ajouter la personne
+                </button>
+                <a href="{{ url_for('personnes') }}" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-x-lg"></i> Annuler
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

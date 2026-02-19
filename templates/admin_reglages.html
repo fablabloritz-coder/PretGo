@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}Réglages - Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-sliders2 text-dark"></i> Réglages
+    </h1>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
+        <i class="bi bi-arrow-left"></i> Retour à l'administration
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Durée d'alerte par défaut -->
+    <div class="col-12 col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                    Durée d'alerte par défaut
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted">
+                    Après cette durée, un prêt sans durée personnalisée apparaîtra dans les alertes.
+                    Cette valeur s'applique à tous les prêts qui n'ont pas de durée spécifique.
+                </p>
+                <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <input type="hidden" name="action" value="duree_alerte">
+                    <div class="row align-items-center g-2 mb-3">
+                        <div class="col-auto">
+                            <input type="number"
+                                   name="duree_alerte_defaut"
+                                   class="form-control form-control-lg"
+                                   value="{{ duree_defaut }}"
+                                   min="1"
+                                   max="365"
+                                   required
+                                   style="width: 120px">
+                        </div>
+                        <div class="col-auto">
+                            <select name="duree_alerte_unite" class="form-select form-select-lg">
+                                <option value="jours" {{ 'selected' if unite_defaut == 'jours' }}>jour(s)</option>
+                                <option value="heures" {{ 'selected' if unite_defaut == 'heures' }}>heure(s)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-lg"></i> Enregistrer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Changer le mot de passe -->
+    <div class="col-12 col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-key-fill text-warning"></i>
+                    Changer le mot de passe administrateur
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <input type="hidden" name="action" value="changer_mdp">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ancien mot de passe</label>
+                        <input type="password"
+                               name="ancien_mdp"
+                               class="form-control form-control-lg"
+                               required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nouveau mot de passe</label>
+                        <input type="password"
+                               name="nouveau_mdp"
+                               class="form-control form-control-lg"
+                               required
+                               minlength="4">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Confirmer le nouveau mot de passe</label>
+                        <input type="password"
+                               name="confirm_mdp"
+                               class="form-control form-control-lg"
+                               required
+                               minlength="4">
+                    </div>
+                    <button type="submit" class="btn btn-warning btn-lg">
+                        <i class="bi bi-key"></i> Modifier le mot de passe
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Impression d'étiquettes -->
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-printer-fill text-info"></i>
+                    Impression d'étiquettes
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('admin_reglages') }}" id="formImpression">
+                    <input type="hidden" name="action" value="impression">
+
+                    <div class="row g-4">
+                        <!-- ═══ Colonne gauche : Paramètres ═══ -->
+                        <div class="col-12 col-lg-7">
+
+                            <!-- Mise en page -->
+                            <h6 class="fw-bold mb-3"><i class="bi bi-grid-3x3-gap"></i> Mise en page A4</h6>
+                            <div class="row g-2 mb-4">
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label small fw-bold">Largeur (mm)</label>
+                                    <input type="number" name="impression_etiquette_largeur" id="impLargeur"
+                                           class="form-control" value="{{ imp_largeur }}" min="15" max="200"
+                                           oninput="majApercu()">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label small fw-bold">Hauteur (mm)</label>
+                                    <input type="number" name="impression_etiquette_hauteur" id="impHauteur"
+                                           class="form-control" value="{{ imp_hauteur }}" min="10" max="200"
+                                           oninput="majApercu()">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label small fw-bold">Colonnes</label>
+                                    <input type="number" name="impression_colonnes" id="impColonnes"
+                                           class="form-control" value="{{ imp_colonnes }}" min="1" max="10"
+                                           oninput="majApercu()">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label small fw-bold">Lignes</label>
+                                    <input type="number" name="impression_lignes" id="impLignes"
+                                           class="form-control" value="{{ imp_lignes }}" min="1" max="20"
+                                           oninput="majApercu()">
+                                </div>
+                            </div>
+
+                            <!-- Personnalisation étiquette -->
+                            <h6 class="fw-bold mb-3"><i class="bi bi-sliders"></i> Personnalisation de l'étiquette</h6>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Police d'écriture</label>
+                                <select name="impression_police" id="impPolice" class="form-select" onchange="majApercu()">
+                                    <option value="Courier New" {{ 'selected' if imp_police == 'Courier New' }}
+                                            style="font-family:'Courier New'">Courier New (monospace)</option>
+                                    <option value="Arial" {{ 'selected' if imp_police == 'Arial' }}
+                                            style="font-family:Arial">Arial (sans-serif)</option>
+                                    <option value="Verdana" {{ 'selected' if imp_police == 'Verdana' }}
+                                            style="font-family:Verdana">Verdana (lisible)</option>
+                                    <option value="OCR-B" {{ 'selected' if imp_police == 'OCR-B' }}
+                                            style="font-family:'OCR-B',monospace">OCR-B (industriel)</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold d-flex justify-content-between">
+                                    <span>Hauteur code-barres</span>
+                                    <span class="text-primary" id="valBarcode">{{ imp_taille_barcode }}%</span>
+                                </label>
+                                <input type="range" name="impression_taille_barcode" id="impBarcode"
+                                       class="form-range" min="20" max="80" value="{{ imp_taille_barcode }}"
+                                       oninput="document.getElementById('valBarcode').textContent=this.value+'%'; majApercu()">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold d-flex justify-content-between">
+                                    <span>Taille texte principal</span>
+                                    <span class="text-primary" id="valTexte">{{ imp_taille_texte }}pt</span>
+                                </label>
+                                <input type="range" name="impression_taille_texte" id="impTexte"
+                                       class="form-range" min="4" max="16" value="{{ imp_taille_texte }}"
+                                       oninput="document.getElementById('valTexte').textContent=this.value+'pt'; majApercu()">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold d-flex justify-content-between">
+                                    <span>Taille sous-texte</span>
+                                    <span class="text-primary" id="valSous">{{ imp_taille_sous_texte }}pt</span>
+                                </label>
+                                <input type="range" name="impression_taille_sous_texte" id="impSousTexte"
+                                       class="form-range" min="3" max="12" value="{{ imp_taille_sous_texte }}"
+                                       oninput="document.getElementById('valSous').textContent=this.value+'pt'; majApercu()">
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label small fw-bold">
+                                    Texte libre (ajouté sur chaque étiquette)
+                                </label>
+                                <input type="text" name="impression_texte_libre" id="impTexteLibre"
+                                       class="form-control" value="{{ imp_texte_libre }}"
+                                       placeholder="Ex: Lycée Jean Moulin — DSI"
+                                       maxlength="60" oninput="majApercu()">
+                                <div class="form-text">Optionnel. Apparaît en bas de chaque étiquette.</div>
+                            </div>
+
+                            <!-- Zebra -->
+                            <hr>
+                            <h6 class="fw-bold mb-3"><i class="bi bi-usb-drive"></i> Imprimante Zebra (optionnel)</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       name="impression_zebra_active" id="zebraSwitch"
+                                       {{ 'checked' if imp_zebra_active == '1' }}
+                                       onchange="toggleZebra()">
+                                <label class="form-check-label" for="zebraSwitch">
+                                    Activer l'impression Zebra
+                                </label>
+                            </div>
+                            <div id="zebraSettings" style="{{ '' if imp_zebra_active == '1' else 'display:none' }}">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Méthode de communication</label>
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="impression_zebra_methode"
+                                                   id="methSerial" value="serial"
+                                                   {{ 'checked' if imp_zebra_methode != 'http' }}
+                                                   onchange="toggleMethode()">
+                                            <label class="form-check-label" for="methSerial">
+                                                <i class="bi bi-usb-plug"></i> Port série (COM/ttyS)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="impression_zebra_methode"
+                                                   id="methHttp" value="http"
+                                                   {{ 'checked' if imp_zebra_methode == 'http' }}
+                                                   onchange="toggleMethode()">
+                                            <label class="form-check-label" for="methHttp">
+                                                <i class="bi bi-globe"></i> HTTP / Réseau (page web)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Série -->
+                                <div id="serialSettings" style="{{ 'display:none' if imp_zebra_methode == 'http' else '' }}">
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label small fw-bold">Port série</label>
+                                            <input type="text" name="impression_port"
+                                                   class="form-control" value="{{ imp_port }}"
+                                                   placeholder="COM3 ou /dev/ttyS4">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-bold">Débit (baud)</label>
+                                            <select name="impression_baud" class="form-select">
+                                                <option value="9600" {{ 'selected' if imp_baud == '9600' }}>9600</option>
+                                                <option value="19200" {{ 'selected' if imp_baud == '19200' }}>19200</option>
+                                                <option value="38400" {{ 'selected' if imp_baud == '38400' }}>38400</option>
+                                                <option value="57600" {{ 'selected' if imp_baud == '57600' }}>57600</option>
+                                                <option value="115200" {{ 'selected' if imp_baud == '115200' }}>115200</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">Offset Tear-off</label>
+                                        <input type="text" name="impression_tearoff"
+                                               class="form-control" value="{{ imp_tearoff }}"
+                                               placeholder="018" style="width: 100px">
+                                    </div>
+                                </div>
+                                <!-- HTTP -->
+                                <div id="httpSettings" style="{{ '' if imp_zebra_methode == 'http' else 'display:none' }}">
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold">URL de l'imprimante</label>
+                                        <input type="text" name="impression_zebra_url"
+                                               class="form-control" value="{{ imp_zebra_url }}"
+                                               placeholder="http://192.168.1.100:9100">
+                                        <div class="form-text">
+                                            URL de l'interface web de l'imprimante Zebra ou d'un serveur relais (ex: Web-Z-Print).
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">
+                                        Template ZPL
+                                        <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip"
+                                           title="Variables : {numero_inventaire}, {type}, {marque}, {modele}, {numero_serie}, {texte_libre}"></i>
+                                    </label>
+                                    <textarea name="impression_zpl_template" class="form-control font-monospace"
+                                              rows="3" style="font-size: 0.85rem;">{{ imp_zpl_template }}</textarea>
+                                    <div class="form-text">
+                                        Variables : <code>{numero_inventaire}</code>, <code>{type}</code>,
+                                        <code>{marque}</code>, <code>{modele}</code>, <code>{numero_serie}</code>,
+                                        <code>{texte_libre}</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ═══ Colonne droite : Aperçu live ═══ -->
+                        <div class="col-12 col-lg-5">
+                            <h6 class="fw-bold mb-3"><i class="bi bi-eye"></i> Aperçu de l'étiquette</h6>
+                            <div class="d-flex justify-content-center p-3 bg-light rounded border">
+                                <div id="previewLabel" style="
+                                    border: 2px dashed #0d6efd;
+                                    border-radius: 4px;
+                                    display: flex;
+                                    flex-direction: column;
+                                    align-items: center;
+                                    justify-content: center;
+                                    overflow: hidden;
+                                    background: #fff;
+                                    transition: all 0.2s ease;
+                                ">
+                                    <svg id="previewBarcode"></svg>
+                                    <div id="previewTexte"
+                                         style="font-weight:bold; text-align:center; line-height:1.2;">
+                                        INV-00123
+                                    </div>
+                                    <div id="previewSous"
+                                         style="color:#555; text-align:center; line-height:1.1;">
+                                        Ordinateur Asus Vivobook
+                                    </div>
+                                    <div id="previewLibre"
+                                         style="color:#888; text-align:center; line-height:1.1; font-style:italic;">
+                                        {{ imp_texte_libre }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-center mt-2 text-muted small">
+                                <span id="previewDims">{{ imp_largeur }} × {{ imp_hauteur }} mm</span>
+                                — Échelle approximative
+                            </div>
+
+                            <div class="alert alert-light border mt-3 small">
+                                <i class="bi bi-info-circle text-primary me-1"></i>
+                                <strong>Résumé :</strong>
+                                <span id="previewResume">{{ imp_colonnes }} × {{ imp_lignes }} = {{ imp_colonnes|int * imp_lignes|int }} étiquettes par page A4</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg mt-3">
+                        <i class="bi bi-check-lg"></i> Enregistrer les paramètres d'impression
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script>
+    function toggleZebra() {
+        document.getElementById('zebraSettings').style.display =
+            document.getElementById('zebraSwitch').checked ? '' : 'none';
+    }
+    function toggleMethode() {
+        const isHttp = document.getElementById('methHttp').checked;
+        document.getElementById('serialSettings').style.display = isHttp ? 'none' : '';
+        document.getElementById('httpSettings').style.display = isHttp ? '' : 'none';
+    }
+    function majApercu() {
+        const larg = parseInt(document.getElementById('impLargeur').value) || 51;
+        const haut = parseInt(document.getElementById('impHauteur').value) || 25;
+        const cols = parseInt(document.getElementById('impColonnes').value) || 4;
+        const ligs = parseInt(document.getElementById('impLignes').value) || 11;
+        const police = document.getElementById('impPolice').value;
+        const barcodeH = parseInt(document.getElementById('impBarcode').value) || 60;
+        const txtSize = parseInt(document.getElementById('impTexte').value) || 8;
+        const subSize = parseInt(document.getElementById('impSousTexte').value) || 6;
+        const texteLibre = document.getElementById('impTexteLibre').value;
+
+        // Dimensions aperçu (scale ~3px/mm)
+        const scale = 3;
+        const prev = document.getElementById('previewLabel');
+        prev.style.width = (larg * scale) + 'px';
+        prev.style.height = (haut * scale) + 'px';
+        prev.style.padding = '2px';
+
+        // Police
+        const texte = document.getElementById('previewTexte');
+        const sous = document.getElementById('previewSous');
+        const libre = document.getElementById('previewLibre');
+        texte.style.fontFamily = "'" + police + "', monospace";
+        texte.style.fontSize = txtSize + 'pt';
+        sous.style.fontFamily = "'" + police + "', sans-serif";
+        sous.style.fontSize = subSize + 'pt';
+        libre.style.fontFamily = "'" + police + "', sans-serif";
+        libre.style.fontSize = Math.max(subSize - 1, 3) + 'pt';
+        libre.textContent = texteLibre;
+        libre.style.display = texteLibre ? '' : 'none';
+
+        // Barcode
+        try {
+            JsBarcode('#previewBarcode', 'INV-00123', {
+                format: 'CODE128', width: 1.2,
+                height: Math.round(barcodeH * 0.5),
+                displayValue: false, margin: 0
+            });
+        } catch(e) {}
+
+        // Infos
+        document.getElementById('previewDims').textContent = larg + ' × ' + haut + ' mm';
+        document.getElementById('previewResume').textContent =
+            cols + ' × ' + ligs + ' = ' + (cols * ligs) + ' étiquettes par page A4';
+    }
+    // Init
+    document.addEventListener('DOMContentLoaded', majApercu);
+    </script>
+
+    <!-- Réinitialisation de la base de données -->
+    <div class="col-12">
+        <div class="card border-danger border-2 shadow-sm">
+            <div class="card-header bg-danger text-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-octagon-fill"></i>
+                    Zone dangereuse — Réinitialiser la base de données
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-danger mb-4">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>ATTENTION :</strong> Cette action est <strong>irréversible</strong>.
+                    Toutes les données seront définitivement supprimées :
+                    personnes, prêts, historique, catégories et paramètres.
+                    La base sera recréée vide avec les valeurs par défaut.
+                </div>
+                <form method="POST"
+                      action="{{ url_for('admin_reset_db') }}"
+                      id="form-reset-db">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            Pour confirmer, tapez <code>REINITIALISER</code> en majuscules :
+                        </label>
+                        <input type="text"
+                               name="confirmation"
+                               class="form-control form-control-lg"
+                               placeholder="REINITIALISER"
+                               autocomplete="off"
+                               required>
+                    </div>
+                    <button type="submit"
+                            class="btn btn-danger btn-lg"
+                            onclick="return confirm('Êtes-vous VRAIMENT sûr ? Toutes les données seront perdues !')">
+                        <i class="bi bi-trash3-fill"></i> Réinitialiser la base de données
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

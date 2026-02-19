@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Retour de Matériel - Gestion de Prêts{% endblock %}
+
+{% block content %}
+<h1 class="page-title">
+    <i class="bi bi-arrow-return-left text-success"></i> Retour de matériel
+</h1>
+
+<!-- Barre de recherche -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('retour') }}">
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text"
+                       name="q"
+                       class="form-control form-control-lg"
+                       placeholder="Rechercher par nom, prénom ou objet..."
+                       value="{{ recherche }}">
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Liste des prêts actifs -->
+{% if prets %}
+<div class="mb-3 text-muted">
+    <strong>{{ prets | length }}</strong> prêt(s) en cours
+</div>
+
+{% for pret in prets %}
+{% set jours = pret.date_emprunt | jours_ecoules %}
+<div class="pret-card {% if jours > 14 %}border-danger{% elif jours > 7 %}border-warning{% endif %}">
+    <div class="pret-header">
+        <div>
+            <div class="pret-name">{{ pret.nom }} {{ pret.prenom }}</div>
+            <span class="cat-badge" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span>
+            {% if pret.classe %}
+                <span class="text-muted ms-2">{{ pret.classe }}</span>
+            {% endif %}
+        </div>
+        <div>
+            {% if jours > 14 %}
+                <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> {{ jours }} jours</span>
+            {% elif jours > 7 %}
+                <span class="badge-actif">{{ jours }} jours</span>
+            {% else %}
+                <span class="text-muted">{{ jours }} jour(s)</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="pret-objects">
+        <i class="bi bi-box text-primary"></i> {{ pret.descriptif_objets }}
+    </div>
+    <div class="d-flex justify-content-between align-items-center">
+        <div class="pret-date">
+            <i class="bi bi-calendar"></i> Emprunté le {{ pret.date_emprunt | format_date }}
+        </div>
+        <button class="btn btn-success btn-lg" type="button"
+                data-bs-toggle="collapse" data-bs-target="#confirm-{{ pret.id }}">
+            <i class="bi bi-check-lg"></i> Confirmer le retour
+        </button>
+    </div>
+    <!-- Zone de confirmation inline -->
+    <div class="collapse mt-3" id="confirm-{{ pret.id }}">
+        <div class="card card-body border-success bg-success bg-opacity-10">
+            <p class="mb-2 fw-bold text-success">
+                <i class="bi bi-question-circle"></i>
+                Confirmer le retour de <em>{{ pret.descriptif_objets }}</em> par {{ pret.nom }} {{ pret.prenom }} ?
+            </p>
+            <form method="POST" action="{{ url_for('confirmer_retour', pret_id=pret.id) }}" class="d-flex gap-2 align-items-center">
+                <input type="hidden" name="signature" value="">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-lg"></i> Oui, valider le retour
+                </button>
+                <button type="button" class="btn btn-outline-secondary"
+                        data-bs-toggle="collapse" data-bs-target="#confirm-{{ pret.id }}">
+                    Annuler
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-check-circle"></i>
+    {% if recherche %}
+        <p>Aucun prêt en cours ne correspond à « {{ recherche }} »</p>
+        <a href="{{ url_for('retour') }}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> Voir tous les prêts
+        </a>
+    {% else %}
+        <p class="mb-0">Aucun prêt en cours. Tout le matériel est retourné !</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

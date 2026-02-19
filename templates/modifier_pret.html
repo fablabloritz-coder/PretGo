@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}Modifier le prêt #{{ pret.id }} - Gestion de Prêts{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-pencil-square text-warning"></i> Modifier le prêt #{{ pret.id }}
+    </h1>
+    <a href="{{ url_for('detail_pret', pret_id=pret.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Retour au détail
+    </a>
+</div>
+
+<div class="alert alert-warning d-flex align-items-center mb-4">
+    <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+    <div>
+        <strong>Modification d'un prêt en cours.</strong>
+        La date et l'heure de cette modification seront enregistrées automatiquement.
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('modifier_pret', pret_id=pret.id) }}">
+            <input type="hidden" id="personne_id" name="personne_id" value="{{ pret.personne_id }}">
+
+            <!-- Étape 1 : Sélection de la personne -->
+            <div class="mb-4">
+                <label class="form-label fw-bold fs-5">
+                    <i class="bi bi-person-fill text-primary"></i> 1. Qui emprunte ?
+                </label>
+                <div class="position-relative">
+                    <div class="search-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text"
+                               id="personne-search"
+                               class="form-control form-control-lg"
+                               placeholder="Tapez un nom ou prénom pour rechercher..."
+                               autocomplete="off"
+                               value="{{ pret.nom }} {{ pret.prenom }}">
+                    </div>
+                    <div id="autocomplete-results" class="autocomplete-results" style="display:none"></div>
+                </div>
+                <div id="personne-selected" class="mt-2">
+                    <div class="alert alert-success py-2 mb-0 d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <span><strong>{{ pret.nom }} {{ pret.prenom }}</strong>
+                            <span class="cat-badge ms-2" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span>
+                            {% if pret.classe %}<small class="text-muted ms-1">({{ pret.classe }})</small>{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Étape 2 : Catégorie et description des objets -->
+            <div class="mb-4">
+                <label class="form-label fw-bold fs-5">
+                    <i class="bi bi-box-fill text-primary"></i> 2. Quel(s) objet(s) ?
+                </label>
+
+                {% if categories %}
+                <div class="mb-3">
+                    <label for="categorie_materiel" class="form-label text-muted">
+                        <i class="bi bi-tags"></i> Catégorie de matériel
+                    </label>
+                    <select id="categorie_materiel" name="categorie_materiel" class="form-select form-select-lg">
+                        <option value="">— Sélectionnez une catégorie —</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.nom }}">{{ cat.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="position-relative">
+                    <label for="descriptif_objets" class="form-label text-muted">
+                        <i class="bi bi-pencil"></i> Description / Précisions
+                    </label>
+                    <textarea id="descriptif_objets"
+                              name="descriptif_objets"
+                              class="form-control form-control-lg"
+                              rows="3"
+                              placeholder="Tapez un n° d'inventaire, une marque ou un modèle pour rechercher dans le stock, ou saisissez un texte libre..."
+                              autocomplete="off"
+                              required>{{ pret.descriptif_objets }}</textarea>
+                    <div id="inventaire-suggestions" class="autocomplete-results" style="display:none"></div>
+                </div>
+
+                <!-- Matériel inventorié lié -->
+                <input type="hidden" id="materiel_id" name="materiel_id" value="{{ pret.materiel_id or '' }}">
+                <div id="materiel-linked" class="mt-2" {% if not pret.materiel_id %}style="display:none"{% endif %}>
+                    <div class="alert alert-success py-2 mb-0 d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <span>Matériel inventorié lié : <strong id="materiel-linked-label">{% if pret.materiel_id %}Matériel #{{ pret.materiel_id }}{% endif %}</strong></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="btn-unlink-materiel">
+                            <i class="bi bi-x-lg"></i> Délier
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Étape 3 : Durée du prêt -->
+            <div class="mb-4">
+                <label class="form-label fw-bold fs-5">
+                    <i class="bi bi-calendar-event-fill text-primary"></i> 3. Durée prévue du prêt
+                </label>
+
+                <div class="row g-2 mb-2">
+                    <div class="col-auto">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="duree_type"
+                                   id="duree_defaut" value="defaut"
+                                   {% if not pret.duree_pret_jours and not pret.duree_pret_heures %}checked{% endif %}
+                                   onchange="toggleDuree()">
+                            <label class="form-check-label" for="duree_defaut">
+                                Par défaut ({{ duree_defaut }} {{ 'heure(s)' if unite_defaut == 'heures' else 'jour(s)' }})
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="duree_type"
+                                   id="duree_type_heures" value="heures"
+                                   {% if pret.duree_pret_heures %}checked{% endif %}
+                                   onchange="toggleDuree()">
+                            <label class="form-check-label" for="duree_type_heures">Heures</label>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="duree_type"
+                                   id="duree_type_jours" value="jours"
+                                   {% if pret.duree_pret_jours %}checked{% endif %}
+                                   onchange="toggleDuree()">
+                            <label class="form-check-label" for="duree_type_jours">Jours</label>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="duree_type"
+                                   id="duree_type_fin" value="fin_journee" onchange="toggleDuree()">
+                            <label class="form-check-label" for="duree_type_fin">
+                                <i class="bi bi-sunset"></i> Fin de journée (17h45)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="zone_heures" {% if not pret.duree_pret_heures %}style="display:none"{% endif %} class="row align-items-center g-2">
+                    <div class="col-auto">
+                        <input type="number" name="duree_heures" class="form-control form-control-lg"
+                               min="0.5" step="0.5" placeholder="2" style="width: 120px"
+                               value="{{ pret.duree_pret_heures or '' }}">
+                    </div>
+                    <div class="col-auto fs-5">heure(s)</div>
+                    <div class="col-12">
+                        <div class="d-flex flex-wrap gap-2 mt-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    onclick="document.querySelector('[name=duree_heures]').value='1'">1h</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    onclick="document.querySelector('[name=duree_heures]').value='2'">2h</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    onclick="document.querySelector('[name=duree_heures]').value='4'">4h</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    onclick="document.querySelector('[name=duree_heures]').value='8'">8h (1 journée)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="zone_jours" {% if not pret.duree_pret_jours %}style="display:none"{% endif %} class="row align-items-center g-2">
+                    <div class="col-auto">
+                        <input type="number" name="duree_jours" class="form-control form-control-lg"
+                               min="1" placeholder="7" style="width: 120px"
+                               value="{{ pret.duree_pret_jours or '' }}">
+                    </div>
+                    <div class="col-auto fs-5">jour(s)</div>
+                </div>
+
+                <div id="zone_fin_journee" style="display:none" class="mt-2">
+                    <div class="alert alert-info small py-2 mb-0">
+                        <i class="bi bi-sunset"></i>
+                        Le prêt sera considéré en dépassement après <strong>17h45 aujourd'hui</strong>.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Étape 4 : Notes -->
+            <div class="mb-4">
+                <label for="notes" class="form-label fw-bold fs-5">
+                    <i class="bi bi-chat-text-fill text-primary"></i> 4. Notes (optionnel)
+                </label>
+                <input type="text"
+                       id="notes"
+                       name="notes"
+                       class="form-control"
+                       placeholder="Informations complémentaires..."
+                       value="{{ pret.notes or '' }}">
+            </div>
+
+            <!-- Info prêt original -->
+            <div class="alert alert-secondary d-flex align-items-center mb-4">
+                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                <div>
+                    <strong>Prêt original :</strong> enregistré le {{ pret.date_emprunt | format_date }}
+                    {% if pret.date_modification %}
+                    <br><small class="text-muted"><i class="bi bi-pencil"></i> Dernière modification : {{ pret.date_modification | format_date }}</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Boutons -->
+            <div class="d-flex gap-3">
+                <button type="submit" class="btn btn-warning btn-lg flex-grow-1">
+                    <i class="bi bi-check-lg"></i> Enregistrer les modifications
+                </button>
+                <a href="{{ url_for('detail_pret', pret_id=pret.id) }}" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-x-lg"></i> Annuler
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Toggle durée ──
+function toggleDuree() {
+    const val = document.querySelector('input[name="duree_type"]:checked').value;
+    document.getElementById('zone_heures').style.display = (val === 'heures') ? '' : 'none';
+    document.getElementById('zone_jours').style.display = (val === 'jours') ? '' : 'none';
+    document.getElementById('zone_fin_journee').style.display = (val === 'fin_journee') ? '' : 'none';
+}
+
+// ── Autocomplete inventaire sur la description ──
+(function() {
+    const textarea = document.getElementById('descriptif_objets');
+    const suggestionsBox = document.getElementById('inventaire-suggestions');
+    const materielIdInput = document.getElementById('materiel_id');
+    const linkedBox = document.getElementById('materiel-linked');
+    const linkedLabel = document.getElementById('materiel-linked-label');
+    const btnUnlink = document.getElementById('btn-unlink-materiel');
+    let debounceTimer = null;
+
+    if (!textarea || !suggestionsBox) return;
+
+    textarea.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const val = this.value;
+        const lastSep = Math.max(val.lastIndexOf(','), val.lastIndexOf('\n'));
+        const segment = (lastSep >= 0 ? val.substring(lastSep + 1) : val).trim();
+        if (segment.length < 2) {
+            suggestionsBox.style.display = 'none';
+            return;
+        }
+        debounceTimer = setTimeout(() => rechercherInventaire(segment), 300);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!textarea.contains(e.target) && !suggestionsBox.contains(e.target)) {
+            suggestionsBox.style.display = 'none';
+        }
+    });
+
+    if (btnUnlink) {
+        btnUnlink.addEventListener('click', function() {
+            unlinkMateriel();
+        });
+    }
+
+    function unlinkMateriel() {
+        if (materielIdInput) materielIdInput.value = '';
+        if (linkedBox) linkedBox.style.display = 'none';
+    }
+
+    function linkMateriel(id, label) {
+        if (materielIdInput) materielIdInput.value = id;
+        if (linkedLabel) linkedLabel.textContent = label;
+        if (linkedBox) linkedBox.style.display = 'block';
+    }
+
+    function rechercherInventaire(query) {
+        fetch('{{ url_for("api_inventaire") }}?q=' + encodeURIComponent(query))
+            .then(r => r.json())
+            .then(items => {
+                if (items.length === 0) {
+                    suggestionsBox.style.display = 'none';
+                    return;
+                }
+                suggestionsBox.innerHTML = '';
+                items.forEach(item => {
+                    let label = item.type_materiel;
+                    if (item.marque) label += ' — ' + item.marque;
+                    if (item.modele) label += ' ' + item.modele;
+                    if (item.numero_inventaire && !item.numero_inventaire.startsWith('AUTO-')) {
+                        label += ' (' + item.numero_inventaire + ')';
+                    }
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-item d-flex align-items-center gap-2';
+                    if (item.image) {
+                        const img = document.createElement('img');
+                        img.src = '{{ url_for("static", filename="uploads/materiel/") }}' + encodeURIComponent(item.image);
+                        img.style.cssText = 'width:35px; height:35px; object-fit:cover; border-radius:4px; min-width:35px;';
+                        div.appendChild(img);
+                    } else {
+                        const icon = document.createElement('i');
+                        icon.className = 'bi bi-pc-display text-primary';
+                        icon.style.cssText = 'font-size:1.2rem; min-width:30px; text-align:center;';
+                        div.appendChild(icon);
+                    }
+                    const labelSpan = document.createElement('span');
+                    labelSpan.className = 'flex-grow-1';
+                    labelSpan.textContent = label;
+                    div.appendChild(labelSpan);
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success';
+                    badge.textContent = 'Inventaire';
+                    div.appendChild(badge);
+                    div.addEventListener('click', function() {
+                        const cur = textarea.value;
+                        const lastSep = Math.max(cur.lastIndexOf(','), cur.lastIndexOf('\n'));
+                        if (lastSep >= 0) {
+                            textarea.value = cur.substring(0, lastSep + 1) + ' ' + label;
+                        } else {
+                            textarea.value = label;
+                        }
+                        suggestionsBox.style.display = 'none';
+                        linkMateriel(item.id, label);
+                        textarea.focus();
+                    });
+                    suggestionsBox.appendChild(div);
+                });
+                suggestionsBox.style.display = 'block';
+            })
+            .catch(() => { suggestionsBox.style.display = 'none'; });
+    }
+})();
+</script>
+{% endblock %}

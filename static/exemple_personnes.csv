@@ -1,0 +1,17 @@
+nom;prenom;categorie;classe
+DUPONT;Marie;eleve;3A
+MARTIN;Lucas;eleve;4B
+BERNARD;Emma;eleve;3A
+PETIT;Thomas;eleve;5C
+ROBERT;Léa;eleve;6A
+RICHARD;Hugo;eleve;4B
+DURAND;Camille;eleve;3B
+LEROY;Nathan;eleve;5A
+MOREAU;Chloé;eleve;6B
+SIMON;Enzo;eleve;4A
+DUBOIS;Sophie;enseignant;
+LAURENT;Philippe;enseignant;
+LEFEVRE;Isabelle;enseignant;
+GARCIA;Antonio;agent;
+FOURNIER;Nathalie;agent;
+GIRARD;Marc;non_enseignant;

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Inventaire matériel - Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-pc-display text-dark"></i> Inventaire matériel
+        <span class="badge bg-secondary ms-2">{{ comptages.total }}</span>
+    </h1>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('importer_inventaire') }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-arrow-up"></i> Importer CSV
+        </a>
+        <a href="{{ url_for('telecharger_gabarit_inventaire') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-download"></i> Gabarit
+        </a>
+        <a href="{{ url_for('ajouter_materiel') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Ajouter
+        </a>
+    </div>
+</div>
+
+<!-- Filtres par type -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{{ url_for('inventaire') }}"
+       class="btn {{ 'btn-dark' if filtre_type == 'tous' else 'btn-outline-dark' }} btn-sm">
+        Tous ({{ comptages.total }})
+    </a>
+    {% for t in types %}
+    <a href="{{ url_for('inventaire', type=t.type_materiel) }}"
+       class="btn {{ 'btn-dark' if filtre_type == t.type_materiel else 'btn-outline-dark' }} btn-sm">
+        {% if t.type_materiel == 'Ordinateur' %}
+            <i class="bi bi-laptop"></i>
+        {% elif t.type_materiel == 'Vidéoprojecteur' %}
+            <i class="bi bi-projector"></i>
+        {% elif t.type_materiel == 'Casque audio' %}
+            <i class="bi bi-headset"></i>
+        {% else %}
+            <i class="bi bi-box"></i>
+        {% endif %}
+        {{ t.type_materiel }} ({{ comptages.get(t.type_materiel, 0) }})
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Barre de recherche -->
+<div class="mb-4">
+    <form method="GET" action="{{ url_for('inventaire') }}" class="d-flex gap-2">
+        {% if filtre_type != 'tous' %}
+        <input type="hidden" name="type" value="{{ filtre_type }}">
+        {% endif %}
+        <div class="search-box flex-grow-1">
+            <i class="bi bi-search"></i>
+            <input type="text" name="q" class="form-control"
+                   placeholder="Rechercher par n° inventaire, marque, modèle, n° série..."
+                   value="{{ recherche }}">
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search"></i>
+        </button>
+        {% if recherche %}
+        <a href="{{ url_for('inventaire', type=filtre_type if filtre_type != 'tous' else None) }}"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg"></i>
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+{% if items %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width:60px">Photo</th>
+                <th>N° inventaire</th>
+                <th>Type</th>
+                <th>Marque / Modèle</th>
+                <th>N° série</th>
+                <th>OS</th>
+                <th>État</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>
+                    {% if item.image %}
+                    <img src="{{ url_for('static', filename='uploads/materiel/' + item.image) }}" alt=""
+                         style="width:45px; height:45px; object-fit:cover; border-radius:6px;">
+                    {% else %}
+                    <div class="d-flex align-items-center justify-content-center bg-light rounded"
+                         style="width:45px; height:45px;">
+                        <i class="bi bi-image text-muted"></i>
+                    </div>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="fw-bold font-monospace">{{ item.numero_inventaire }}</span>
+                </td>
+                <td>
+                    {% if item.type_materiel == 'Ordinateur' %}
+                        <i class="bi bi-laptop text-primary"></i>
+                    {% elif item.type_materiel == 'Vidéoprojecteur' %}
+                        <i class="bi bi-projector text-success"></i>
+                    {% elif item.type_materiel == 'Casque audio' %}
+                        <i class="bi bi-headset text-warning"></i>
+                    {% else %}
+                        <i class="bi bi-box text-secondary"></i>
+                    {% endif %}
+                    {{ item.type_materiel }}
+                </td>
+                <td>
+                    {% if item.marque %}{{ item.marque }}{% endif %}
+                    {% if item.modele %}<span class="text-muted">{{ item.modele }}</span>{% endif %}
+                    {% if not item.marque and not item.modele %}—{% endif %}
+                </td>
+                <td>
+                    {% if item.numero_serie %}
+                        <span class="font-monospace small">{{ item.numero_serie }}</span>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.systeme_exploitation %}
+                        {{ item.systeme_exploitation }}
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.etat == 'disponible' %}
+                        <span class="badge bg-success">Disponible</span>
+                    {% elif item.etat == 'prete' %}
+                        <span class="badge bg-warning">En prêt</span>
+                    {% elif item.etat == 'en_panne' %}
+                        <span class="badge bg-danger">En panne</span>
+                    {% elif item.etat == 'reforme' %}
+                        <span class="badge bg-secondary">Réformé</span>
+                    {% else %}
+                        <span class="badge bg-info">{{ item.etat }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    <div class="d-flex gap-1 justify-content-end">
+                        <a href="{{ url_for('modifier_materiel', mat_id=item.id) }}"
+                           class="btn btn-sm btn-outline-primary" title="Modifier">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="POST"
+                              action="{{ url_for('supprimer_materiel', mat_id=item.id) }}"
+                              onsubmit="return confirm('Supprimer ce matériel de l\'inventaire ?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-pc-display text-muted" style="font-size: 4rem;"></i>
+    <p class="mt-3 fs-5">
+        {% if recherche %}
+            Aucun matériel trouvé pour "{{ recherche }}"
+        {% elif filtre_type != 'tous' %}
+            Aucun matériel de type "{{ filtre_type }}"
+        {% else %}
+            Aucun matériel dans l'inventaire
+        {% endif %}
+    </p>
+    <p class="text-muted">
+        <a href="{{ url_for('ajouter_materiel') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Ajouter un matériel
+        </a>
+        ou
+        <a href="{{ url_for('importer_inventaire') }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-arrow-up"></i> Importer un CSV
+        </a>
+    </p>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
+        <i class="bi bi-arrow-left"></i> Retour à l'administration
+    </a>
+</div>
+
+{% endblock %}
