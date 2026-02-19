@@ -268,6 +268,7 @@ def utility_processor():
         'nb_alertes': nb_alertes,
         'is_admin': is_admin,
         'cats_personnes': cats_personnes,
+        'mode_scanner': get_setting('mode_scanner', 'les_deux'),
     }
 
 
@@ -500,6 +501,50 @@ def confirmer_retour(pret_id):
     conn.commit()
     conn.close()
     flash('Retour confirmé avec succès !', 'success')
+    return redirect(url_for('retour'))
+
+
+@app.route('/retour/masse', methods=['POST'])
+def retour_masse():
+    """Confirme le retour de plusieurs prêts en une seule action."""
+    pret_ids = request.form.getlist('pret_ids')
+    if not pret_ids:
+        flash('Aucun prêt sélectionné.', 'warning')
+        return redirect(url_for('retour'))
+
+    conn = get_db()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    nb = 0
+    for pid in pret_ids:
+        if not pid.isdigit():
+            continue
+        pid = int(pid)
+        pret = conn.execute(
+            'SELECT materiel_id FROM prets WHERE id = ? AND retour_confirme = 0', (pid,)
+        ).fetchone()
+        if not pret:
+            continue
+        conn.execute(
+            'UPDATE prets SET date_retour = ?, retour_confirme = 1, signature_retour = ? WHERE id = ?',
+            (now, '', pid)
+        )
+        # Libérer matériels liés (multi-matériel)
+        mats = conn.execute(
+            'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
+            (pid,)
+        ).fetchall()
+        for m in mats:
+            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
+        # Rétrocompat : ancien champ materiel_id
+        if pret['materiel_id']:
+            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+        nb += 1
+    conn.commit()
+    conn.close()
+    if nb:
+        flash(f'{nb} retour(s) confirmé(s) avec succès !', 'success')
+    else:
+        flash('Aucun retour effectué.', 'warning')
     return redirect(url_for('retour'))
 
 
@@ -2785,6 +2830,64 @@ def api_inventaire():
         ''').fetchall()
     conn.close()
     return jsonify([dict(i) for i in items])
+
+
+@app.route('/api/scan')
+def api_scan():
+    """API JSON : recherche un code scanné (numéro inventaire ou série) et renvoie l'URL de redirection."""
+    code = request.args.get('code', '').strip()
+    if not code:
+        return jsonify({'found': False, 'message': 'Aucun code fourni.'})
+
+    conn = get_db()
+    # 1) Chercher dans l'inventaire par numéro d'inventaire ou numéro de série
+    mat = conn.execute(
+        'SELECT id, type_materiel, marque, modele, numero_inventaire, etat FROM inventaire '
+        'WHERE actif = 1 AND (numero_inventaire = ? OR numero_serie = ?)',
+        (code, code)
+    ).fetchone()
+
+    if not mat:
+        conn.close()
+        return jsonify({'found': False, 'message': f'Aucun matériel trouvé pour « {code} ».'})
+
+    # 2) Vérifier s'il y a un prêt actif pour ce matériel
+    pret = conn.execute('''
+        SELECT p.id FROM prets p
+        JOIN pret_materiels pm ON pm.pret_id = p.id
+        WHERE pm.materiel_id = ? AND p.retour_confirme = 0
+        LIMIT 1
+    ''', (mat['id'],)).fetchone()
+
+    # Rétrocompat legacy materiel_id
+    if not pret:
+        pret = conn.execute(
+            'SELECT id FROM prets WHERE materiel_id = ? AND retour_confirme = 0 LIMIT 1',
+            (mat['id'],)
+        ).fetchone()
+
+    conn.close()
+
+    label = mat['type_materiel']
+    if mat['marque']:
+        label += f" {mat['marque']}"
+    if mat['modele']:
+        label += f" {mat['modele']}"
+
+    if pret:
+        return jsonify({
+            'found': True,
+            'type': 'pret_actif',
+            'message': f'{label} — Prêt actif trouvé',
+            'url': url_for('detail_pret', pret_id=pret['id']),
+        })
+    else:
+        return jsonify({
+            'found': True,
+            'type': 'materiel',
+            'message': f'{label} — {mat["etat"]}',
+            'url': url_for('modifier_materiel', mat_id=mat['id']),
+        })
 
 
 # ============================================================
