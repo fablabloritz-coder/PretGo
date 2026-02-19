@@ -41,9 +41,16 @@ def allowed_file(filename):
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'gestion_prets_materiel_secret_2024')
 
-# Initialiser la base de données au démarrage
+
+# Initialiser la base de données au démarrage avec affichage d'erreur explicite
 with app.app_context():
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        import traceback
+        print("\n[ERREUR INIT_DB]", e)
+        traceback.print_exc()
+        raise
 
 
 # ============================================================
