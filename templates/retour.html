@@ -57,10 +57,9 @@
             </div>
         </div>
         <div>
-            {% if jours > 14 %}
-                <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> {{ jours }} jours</span>
-            {% elif jours > 7 %}
-                <span class="badge-actif">{{ jours }} jours</span>
+            {% set depasse, _ = calcul_depassement_heures(pret.date_emprunt, pret.duree_pret_heures, pret.duree_pret_jours) %}
+            {% if depasse %}
+                <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> En retard</span>
             {% else %}
                 <span class="badge-actif">En cours</span>
             {% endif %}

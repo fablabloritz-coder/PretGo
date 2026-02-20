@@ -68,11 +68,9 @@
                                 {% if pret.retour_confirme %}
                                     <span class="badge-retourne"><i class="bi bi-check"></i> Retourné</span>
                                 {% else %}
-                                    {% set jours = pret.date_emprunt | jours_ecoules %}
-                                    {% if jours > 14 %}
-                                        <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> {{ jours }}j</span>
-                                    {% elif jours > 7 %}
-                                        <span class="badge-actif">{{ jours }}j</span>
+                                    {% set depasse, _ = calcul_depassement_heures(pret.date_emprunt, pret.duree_pret_heures, pret.duree_pret_jours) %}
+                                    {% if depasse %}
+                                        <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> En retard</span>
                                     {% else %}
                                         <span class="badge-actif">En cours</span>
                                     {% endif %}
