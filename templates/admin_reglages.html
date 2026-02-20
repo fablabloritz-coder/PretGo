@@ -25,8 +25,9 @@
                     </div>
                     <div class="card-body p-4">
                         <p class="text-muted mb-4">
-                            Un bip est joué à chaque scan réussi avec la webcam. Vous pouvez tester le son ici et ajuster le volume.
+                            Un bip est joué à chaque scan réussi avec la webcam. Vous pouvez tester le son ici et personnaliser le volume et le type de bip.
                         </p>
+                        <form id="bip-settings-form" onsubmit="event.preventDefault(); saveBipSettings();">
                         <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
                             <button type="button" class="btn btn-outline-primary" id="btn-test-bip">
                                 <i class="bi bi-play-circle"></i> Tester le bip
@@ -35,8 +36,19 @@
                                 <label for="bip-volume" class="form-label mb-0">Volume</label>
                                 <input type="range" min="0" max="100" value="15" id="bip-volume" style="width:120px;">
                             </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="bip-type" class="form-label mb-0">Type</label>
+                                <select id="bip-type" class="form-select form-select-sm" style="width:auto;">
+                                    <option value="sine">Classique (Sine)</option>
+                                    <option value="square">Carré (plus robotique)</option>
+                                    <option value="triangle">Triangle (doux)</option>
+                                    <option value="sawtooth">Dent de scie (plus aigu)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-text mt-2">Le volume du bip s'appliquera à tous les scans webcam.<br>Pour personnaliser le son, contactez l'administrateur.</div>
+                        <button type="submit" class="btn btn-success"><i class="bi bi-save"></i> Enregistrer</button>
+                        </form>
+                        <div class="form-text mt-2">Le volume et le type de bip s'appliqueront à tous les scans webcam.</div>
                     </div>
                 </div>
             </div>
@@ -408,29 +420,59 @@
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
     <script>
     // Bip sonore testable et volume réglable
-    let bipVolume = 0.15;
-    function playBeep(vol) {
+    function getBipSettings() {
+        let v = 0.15, t = 'sine';
         try {
+            const storedV = localStorage.getItem('pretgo_bip_volume');
+            if (storedV !== null) v = Math.max(0, Math.min(1, parseFloat(storedV)));
+            const storedT = localStorage.getItem('pretgo_bip_type');
+            if (storedT) t = storedT;
+        } catch(e) {}
+        return {volume: v, type: t};
+    }
+    function setBipSettings(v, t) {
+        try {
+            localStorage.setItem('pretgo_bip_volume', v);
+            localStorage.setItem('pretgo_bip_type', t);
+        } catch(e) {}
+    }
+    function playBeep(vol, type) {
+        try {
+            const settings = getBipSettings();
+            const volume = (typeof vol === 'number' ? vol : settings.volume);
+            const bipType = type || settings.type;
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const o = ctx.createOscillator();
             const g = ctx.createGain();
-            o.type = 'sine';
+            o.type = bipType;
             o.frequency.value = 1200;
-            g.gain.value = (typeof vol === 'number' ? vol : bipVolume);
+            g.gain.value = volume;
             o.connect(g); g.connect(ctx.destination);
             o.start();
             setTimeout(() => { o.stop(); ctx.close(); }, 120);
         } catch(e) {}
     }
+    function saveBipSettings() {
+        const v = Math.max(0, Math.min(1, document.getElementById('bip-volume').value/100));
+        const t = document.getElementById('bip-type').value;
+        setBipSettings(v, t);
+        // Optionnel : feedback visuel
+        const btn = document.querySelector('#bip-settings-form button[type="submit"]');
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> Enregistré !';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-save"></i> Enregistrer'; }, 1200);
+    }
     document.addEventListener('DOMContentLoaded', function() {
         const btn = document.getElementById('btn-test-bip');
         const slider = document.getElementById('bip-volume');
-        if (btn && slider) {
-            btn.addEventListener('click', function() { playBeep(bipVolume); });
-            slider.addEventListener('input', function() {
-                bipVolume = Math.max(0, Math.min(1, this.value/100));
-            });
-        }
+        const select = document.getElementById('bip-type');
+        // Init depuis localStorage
+        const settings = getBipSettings();
+        slider.value = Math.round(settings.volume * 100);
+        select.value = settings.type;
+        // Tester le bip prend en compte le choix courant
+        btn.addEventListener('click', function() {
+            playBeep(slider.value/100, select.value);
+        });
     });
     </script>
     <script>

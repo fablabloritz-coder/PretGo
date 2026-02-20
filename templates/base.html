@@ -186,17 +186,69 @@
         }
 
         // Bip sonore pour le scan webcam (pas pour douchette)
-        function playBeep() {
+        function getBipSettings() {
+            let v = 0.15, t = 'sine';
             try {
+                const storedV = localStorage.getItem('pretgo_bip_volume');
+                if (storedV !== null) v = Math.max(0, Math.min(1, parseFloat(storedV)));
+                const storedT = localStorage.getItem('pretgo_bip_type');
+                if (storedT) t = storedT;
+            } catch(e) {}
+            return {volume: v, type: t};
+        }
+        function playBeep(vol, type) {
+            try {
+                const settings = getBipSettings();
+                const volume = (typeof vol === 'number' ? vol : settings.volume);
+                const bipType = type || settings.type;
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const o = ctx.createOscillator();
-                const g = ctx.createGain();
-                o.type = 'sine';
-                o.frequency.value = 1200;
-                g.gain.value = 0.15;
-                o.connect(g); g.connect(ctx.destination);
-                o.start();
-                setTimeout(() => { o.stop(); ctx.close(); }, 120);
+                if (bipType === 'double') {
+                    // Deux bips courts
+                    const o1 = ctx.createOscillator();
+                    const g1 = ctx.createGain();
+                    o1.type = 'sine';
+                    o1.frequency.value = 1200;
+                    g1.gain.value = volume;
+                    o1.connect(g1); g1.connect(ctx.destination);
+                    o1.start();
+                    setTimeout(() => { o1.stop(); }, 70);
+                    setTimeout(() => {
+                        const o2 = ctx.createOscillator();
+                        const g2 = ctx.createGain();
+                        o2.type = 'sine';
+                        o2.frequency.value = 1200;
+                        g2.gain.value = volume;
+                        o2.connect(g2); g2.connect(ctx.destination);
+                        o2.start();
+                        setTimeout(() => { o2.stop(); ctx.close(); }, 70);
+                    }, 90);
+                    return;
+                } else if (bipType === 'up' || bipType === 'down') {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = 'sine';
+                    o.frequency.value = (bipType === 'up') ? 900 : 1800;
+                    g.gain.value = volume;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start();
+                    const start = ctx.currentTime;
+                    if (bipType === 'up') {
+                        o.frequency.linearRampToValueAtTime(1800, start + 0.13);
+                    } else {
+                        o.frequency.linearRampToValueAtTime(900, start + 0.13);
+                    }
+                    setTimeout(() => { o.stop(); ctx.close(); }, 130);
+                    return;
+                } else {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = bipType;
+                    o.frequency.value = 1200;
+                    g.gain.value = volume;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start();
+                    setTimeout(() => { o.stop(); ctx.close(); }, 120);
+                }
             } catch(e) {}
         }
         function showDouchetteHelp() {
