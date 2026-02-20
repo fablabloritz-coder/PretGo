@@ -211,7 +211,8 @@ Au premier lancement, l'application crée automatiquement :
 
 ## 📸 Aperçu
 
-> *Les captures d'écran seront ajoutées prochainement.*
+<img width="1912" height="1076" alt="image" src="https://github.com/user-attachments/assets/beee0068-c3bc-4680-9ca2-a835db76bb93" />
+
 
 ### Tableau de bord
 Liste des prêts en cours avec indicateur de durée et alertes de dépassement.
