@@ -107,7 +107,14 @@
                                 <br>
                                 <small class="text-muted">{{ pret.date_retour | format_heure }}</small>
                             {% elif not pret.retour_confirme %}
-                                <span class="badge bg-warning text-dark">En cours</span>
+                                {% set jours = pret.date_emprunt | jours_ecoules %}
+                                {% if jours > 14 %}
+                                    <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> {{ jours }}j en retard</span>
+                                {% elif jours > 7 %}
+                                    <span class="badge-actif">{{ jours }}j</span>
+                                {% else %}
+                                    <span class="badge-actif">En cours</span>
+                                {% endif %}
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
