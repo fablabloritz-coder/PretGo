@@ -22,18 +22,14 @@
                             <i class="bi bi-check-circle"></i> RETOURNÉ
                         </span>
                     {% else %}
-                        {% set jours = pret.date_emprunt | jours_ecoules %}
-                        {% if jours > 14 %}
+                        {% set depasse, _ = calcul_depassement_heures(pret.date_emprunt, pret.duree_pret_heures, pret.duree_pret_jours) %}
+                        {% if depasse %}
                             <span class="badge bg-danger fs-5 px-4 py-2">
-                                <i class="bi bi-exclamation-triangle"></i> EN COURS — {{ jours }} JOURS
-                            </span>
-                        {% elif jours > 7 %}
-                            <span class="badge bg-warning fs-5 px-4 py-2">
-                                <i class="bi bi-clock"></i> EN COURS — {{ jours }} JOURS
+                                <i class="bi bi-exclamation-triangle"></i> EN RETARD
                             </span>
                         {% else %}
-                            <span class="badge bg-info fs-5 px-4 py-2">
-                                <i class="bi bi-clock"></i> EN COURS — {{ jours }} JOUR(S)
+                            <span class="badge bg-warning fs-5 px-4 py-2">
+                                <i class="bi bi-clock"></i> EN COURS
                             </span>
                         {% endif %}
                     {% endif %}

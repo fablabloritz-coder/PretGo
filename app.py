@@ -276,6 +276,7 @@ def utility_processor():
         'is_admin': is_admin,
         'cats_personnes': cats_personnes,
         'mode_scanner': get_setting('mode_scanner', 'les_deux'),
+        'calcul_depassement_heures': calcul_depassement_heures,
     }
 
 
