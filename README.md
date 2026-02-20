@@ -241,10 +241,11 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 ### Idées d'améliorations
 
 - 📊 Tableau de bord statistique (taux d'utilisation, graphiques) + export des données
+- 📅 Ajout de la date précise de fin de prêt
 - 🔧 Gestion du cycle de vie du matériel (maintenance, garantie, rebut)
 - 📜 Générer dynamiquement les champs personnalisées des pdfs de prêt et permettra l'edition de formulaire
 - 🎨 Thème de couleur personnalisable
-- 🔦 Support natif pour douchette USB 
+- 🔦 Support natif pour douchette USB (Gestion des erreurs)
 
 ---
 
