@@ -56,13 +56,20 @@ Cette application tourne **en local** sur votre poste — aucun serveur externe,
 - Badge de notification dans la barre de navigation
 - Export CSV des alertes en cours
 
+
 ### Administration
 - **Première connexion guidée** : mot de passe par défaut `1234`, personnalisation obligatoire au premier lancement
 - Code de récupération **unique par installation**, généré lors de la personnalisation du mot de passe
 - Accès protégé par mot de passe (hachage sécurisé scrypt/pbkdf2)
 - Réglages : durée par défaut, heure de fin de journée, nom de l'établissement, taille des étiquettes
+- **Personnalisation du bip sonore** lors des scans webcam : choix du volume et du type de bip (sine, carré, triangle, dent de scie), test instantané, réglages persistants sur toutes les pages
 - Réinitialisation de la base de données
 - Génération de données de démonstration dynamiques (s'adapte aux catégories configurées)
+### Ergonomie du scan
+- Bouton de scan toujours visible dans la barre de navigation
+- Icône contextuelle selon le mode (webcam ou douchette)
+- Bip sonore configurable à chaque scan webcam (volume/type)
+- Test du bip en direct dans les réglages admin
 
 ### Import / Export
 - Export CSV : prêts (tous / en cours), personnes, inventaire, alertes
@@ -160,6 +167,7 @@ Au premier lancement, l'application crée automatiquement :
 
 > ⚠️ Le code de récupération est régénéré à chaque changement de mot de passe. Pensez à noter le nouveau code.
 
+
 ### Réglages disponibles
 
 | Paramètre | Description | Valeur par défaut |
@@ -169,6 +177,8 @@ Au premier lancement, l'application crée automatiquement :
 | Heure de fin de journée | Limite pour le mode "fin de journée" | 17:45 |
 | Nom de l'établissement | Affiché sur les étiquettes | — |
 | Taille code-barres | Hauteur des codes-barres sur les étiquettes | 50 |
+| Volume du bip | Volume du bip sonore lors du scan webcam | 15% |
+| Type de bip | Forme d'onde du bip (sine, carré, triangle, dent de scie) | Sine |
 
 ---
 
