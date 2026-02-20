@@ -240,13 +240,11 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 ### Idées d'améliorations
 
-- 📅 Système de réservation / planification
-- 📧 Notifications par email (rappels, retards)
-- 👥 Mode multi-utilisateurs avec rôles (admin, gestionnaire, consultant)
-- 📊 Tableau de bord statistique (taux d'utilisation, graphiques)
+- 📊 Tableau de bord statistique (taux d'utilisation, graphiques) + export des données
 - 🔧 Gestion du cycle de vie du matériel (maintenance, garantie, rebut)
-- 📱 Scan QR code / code-barres via la caméra du smartphone
-- 🌐 Mode hors-ligne (PWA)
+- 📜 Générer dynamiquement les champs personnalisées des pdfs de prêt et permettra l'edition de formulaire
+- 🎨 Thème de couleur personnalisable
+- 🔦 Support natif pour douchette USB 
 
 ---
 
