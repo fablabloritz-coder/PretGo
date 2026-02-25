@@ -270,6 +270,14 @@ def utility_processor():
         cats_personnes = {}
     g._cats_personnes_cache = cats_personnes
 
+    # Charger le thème personnalisé
+    theme = {
+        'couleur_primaire': get_setting('theme_couleur_primaire', '#1a73e8'),
+        'couleur_navbar': get_setting('theme_couleur_navbar', '#1a56db'),
+        'logo': get_setting('theme_logo', ''),
+        'nom_application': get_setting('theme_nom_application', 'PretGo'),
+    }
+
     return {
         'now': datetime.now,
         'nb_alertes': nb_alertes,
@@ -277,6 +285,7 @@ def utility_processor():
         'cats_personnes': cats_personnes,
         'mode_scanner': get_setting('mode_scanner', 'les_deux'),
         'calcul_depassement_heures': calcul_depassement_heures,
+        'theme': theme,
     }
 
 
@@ -672,12 +681,16 @@ def ajouter_personne():
                 (nom, prenom, categorie, classe)
             )
             conn.commit()
+            personne_id_new = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            # Sauvegarder les champs personnalisés
+            sauver_valeurs_champs(personne_id_new, 'personne', request.form)
             conn.close()
             flash(f'{prenom} {nom} a été ajouté(e) avec succès !', 'success')
             return redirect(url_for('personnes'))
 
     cats = get_categories_personnes()
-    return render_template('ajouter_personne.html', cats_personnes=cats)
+    champs_custom = get_champs_personnalises('personne')
+    return render_template('ajouter_personne.html', cats_personnes=cats, champs_custom=champs_custom)
 
 
 @app.route('/personnes/modifier/<int:personne_id>', methods=['GET', 'POST'])
@@ -699,6 +712,8 @@ def modifier_personne(personne_id):
                 (nom, prenom, categorie, classe, personne_id)
             )
             conn.commit()
+            # Sauvegarder les champs personnalisés
+            sauver_valeurs_champs(personne_id, 'personne', request.form)
             flash('Personne modifiée avec succès !', 'success')
             conn.close()
             return redirect(url_for('personnes'))
@@ -710,8 +725,11 @@ def modifier_personne(personne_id):
         flash('Personne non trouvée.', 'danger')
         return redirect(url_for('personnes'))
 
+    champs_custom = get_champs_personnalises('personne')
+    valeurs_custom = get_valeurs_champs(personne_id, 'personne')
     return render_template('modifier_personne.html', personne=personne,
-                           cats_personnes=get_categories_personnes())
+                           cats_personnes=get_categories_personnes(),
+                           champs_custom=champs_custom, valeurs_custom=valeurs_custom)
 
 
 @app.route('/personnes/supprimer/<int:personne_id>', methods=['POST'])
@@ -1724,6 +1742,47 @@ def admin_reglages():
             else:
                 flash('Format d\'heure invalide (attendu HH:MM).', 'danger')
 
+        elif action == 'scanner_prefixe_suffixe':
+            prefixe = request.form.get('scanner_prefixe', '').strip()
+            suffixe = request.form.get('scanner_suffixe', '').strip()
+            set_setting('scanner_prefixe', prefixe)
+            set_setting('scanner_suffixe', suffixe)
+            msg = 'Préfixe/suffixe de douchette enregistrés.'
+            if prefixe:
+                msg += f' Préfixe : « {prefixe} »'
+            if suffixe:
+                msg += f' Suffixe : « {suffixe} »'
+            flash(msg, 'success')
+
+        elif action == 'theme':
+            couleur_primaire = request.form.get('theme_couleur_primaire', '#1a73e8').strip()
+            couleur_navbar = request.form.get('theme_couleur_navbar', '#1a56db').strip()
+            nom_app = request.form.get('theme_nom_application', 'PretGo').strip()
+            set_setting('theme_couleur_primaire', couleur_primaire)
+            set_setting('theme_couleur_navbar', couleur_navbar)
+            set_setting('theme_nom_application', nom_app)
+
+            # Gestion de l'upload du logo
+            if 'theme_logo_file' in request.files:
+                fichier_logo = request.files['theme_logo_file']
+                if fichier_logo and fichier_logo.filename:
+                    if allowed_file(fichier_logo.filename):
+                        ext = fichier_logo.filename.rsplit('.', 1)[1].lower()
+                        logo_filename = f'logo_custom.{ext}'
+                        logo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+                        os.makedirs(logo_dir, exist_ok=True)
+                        logo_path = os.path.join(logo_dir, logo_filename)
+                        fichier_logo.save(logo_path)
+                        set_setting('theme_logo', f'uploads/{logo_filename}')
+                    else:
+                        flash('Format de logo non accepté (PNG, JPG, GIF, WebP, SVG).', 'warning')
+
+            # Supprimer le logo si demandé
+            if request.form.get('supprimer_logo') == '1':
+                set_setting('theme_logo', '')
+
+            flash('Thème personnalisé enregistré.', 'success')
+
         return redirect(url_for('admin_reglages'))
 
     duree_defaut = get_setting('duree_alerte_defaut', '7')
@@ -1749,7 +1808,13 @@ def admin_reglages():
                            imp_taille_sous_texte=get_setting('impression_taille_sous_texte', '6'),
                            imp_texte_libre=get_setting('impression_texte_libre', ''),
                            mode_scanner=get_setting('mode_scanner', 'les_deux'),
-                           heure_fin_journee=get_setting('heure_fin_journee', '17:45'))
+                           heure_fin_journee=get_setting('heure_fin_journee', '17:45'),
+                           scanner_prefixe=get_setting('scanner_prefixe', ''),
+                           scanner_suffixe=get_setting('scanner_suffixe', ''),
+                           theme_couleur_primaire=get_setting('theme_couleur_primaire', '#1a73e8'),
+                           theme_couleur_navbar=get_setting('theme_couleur_navbar', '#1a56db'),
+                           theme_logo=get_setting('theme_logo', ''),
+                           theme_nom_application=get_setting('theme_nom_application', 'PretGo'))
 
 
 # ============================================================
@@ -2510,6 +2575,9 @@ def ajouter_materiel():
                     (type_mat, marque, modele, numero_serie, numero_inv, os_val, notes, image)
                 )
                 conn.commit()
+                mat_id_new = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+                # Sauvegarder les champs personnalisés
+                sauver_valeurs_champs(mat_id_new, 'materiel', request.form)
                 flash(f'Matériel {numero_inv} ajouté avec succès !', 'success')
                 conn.close()
                 return redirect(url_for('inventaire'))
@@ -2520,7 +2588,9 @@ def ajouter_materiel():
     conn = get_db()
     categories = conn.execute('SELECT * FROM categories_materiel ORDER BY nom').fetchall()
     conn.close()
-    return render_template('ajouter_materiel.html', categories=categories, form=form_data)
+    champs_custom = get_champs_personnalises('materiel')
+    return render_template('ajouter_materiel.html', categories=categories, form=form_data,
+                           champs_custom=champs_custom)
 
 
 @app.route('/inventaire/modifier/<int:mat_id>', methods=['GET', 'POST'])
@@ -2551,6 +2621,8 @@ def modifier_materiel(mat_id):
             (type_mat, marque, modele, numero_serie, numero_inv, os_val, etat, notes, image, mat_id)
         )
         conn.commit()
+        # Sauvegarder les champs personnalisés
+        sauver_valeurs_champs(mat_id, 'materiel', request.form)
         flash('Matériel modifié avec succès !', 'success')
         conn.close()
         return redirect(url_for('inventaire'))
@@ -2561,7 +2633,10 @@ def modifier_materiel(mat_id):
     if not materiel:
         flash('Matériel non trouvé.', 'danger')
         return redirect(url_for('inventaire'))
-    return render_template('modifier_materiel.html', materiel=materiel, categories=categories)
+    champs_custom = get_champs_personnalises('materiel')
+    valeurs_custom = get_valeurs_champs(mat_id, 'materiel')
+    return render_template('modifier_materiel.html', materiel=materiel, categories=categories,
+                           champs_custom=champs_custom, valeurs_custom=valeurs_custom)
 
 
 @app.route('/inventaire/supprimer/<int:mat_id>', methods=['POST'])
@@ -2842,27 +2917,70 @@ def api_inventaire():
 
 @app.route('/api/scan')
 def api_scan():
-    """API JSON : recherche un code scanné (numéro inventaire ou série) et renvoie l'URL de redirection."""
+    """API JSON : recherche un code scanné (numéro inventaire ou série) et renvoie l'URL de redirection.
+    Supporte le nettoyage de préfixe/suffixe configuré dans les réglages."""
     code = request.args.get('code', '').strip()
     if not code:
         return jsonify({'found': False, 'message': 'Aucun code fourni.'})
+
+    # Nettoyage préfixe/suffixe configuré
+    prefixe = get_setting('scanner_prefixe', '').strip()
+    suffixe = get_setting('scanner_suffixe', '').strip()
+    code_clean = code
+    if prefixe and code_clean.startswith(prefixe):
+        code_clean = code_clean[len(prefixe):]
+    if suffixe and code_clean.endswith(suffixe):
+        code_clean = code_clean[:-len(suffixe)]
+    code_clean = code_clean.strip()
+
+    if not code_clean:
+        return jsonify({'found': False, 'message': f'Code vide après nettoyage (préfixe/suffixe).'})
 
     conn = get_db()
     # 1) Chercher dans l'inventaire par numéro d'inventaire ou numéro de série
     mat = conn.execute(
         'SELECT id, type_materiel, marque, modele, numero_inventaire, etat FROM inventaire '
         'WHERE actif = 1 AND (numero_inventaire = ? OR numero_serie = ?)',
-        (code, code)
+        (code_clean, code_clean)
     ).fetchone()
+
+    # Si pas trouvé avec le code nettoyé, essayer avec le code brut
+    if not mat and code_clean != code:
+        mat = conn.execute(
+            'SELECT id, type_materiel, marque, modele, numero_inventaire, etat FROM inventaire '
+            'WHERE actif = 1 AND (numero_inventaire = ? OR numero_serie = ?)',
+            (code, code)
+        ).fetchone()
 
     if not mat:
         conn.close()
-        return jsonify({'found': False, 'message': f'Aucun matériel trouvé pour « {code} ».'})
+        return jsonify({
+            'found': False,
+            'message': f'Aucun matériel trouvé pour « {code_clean} ».',
+            'code_original': code,
+            'code_nettoye': code_clean
+        })
 
-    # 2) Vérifier s'il y a un prêt actif pour ce matériel
+    # 2) Vérifier l'état du matériel
+    if mat['etat'] == 'hors_service':
+        conn.close()
+        label = mat['type_materiel']
+        if mat['marque']:
+            label += f" {mat['marque']}"
+        if mat['modele']:
+            label += f" {mat['modele']}"
+        return jsonify({
+            'found': True,
+            'type': 'hors_service',
+            'message': f'{label} — Matériel hors service',
+            'url': url_for('modifier_materiel', mat_id=mat['id']),
+        })
+
+    # 3) Vérifier s'il y a un prêt actif pour ce matériel
     pret = conn.execute('''
-        SELECT p.id FROM prets p
+        SELECT p.id, pe.nom, pe.prenom FROM prets p
         JOIN pret_materiels pm ON pm.pret_id = p.id
+        JOIN personnes pe ON p.personne_id = pe.id
         WHERE pm.materiel_id = ? AND p.retour_confirme = 0
         LIMIT 1
     ''', (mat['id'],)).fetchone()
@@ -2870,7 +2988,9 @@ def api_scan():
     # Rétrocompat legacy materiel_id
     if not pret:
         pret = conn.execute(
-            'SELECT id FROM prets WHERE materiel_id = ? AND retour_confirme = 0 LIMIT 1',
+            '''SELECT p.id, pe.nom, pe.prenom FROM prets p
+               JOIN personnes pe ON p.personne_id = pe.id
+               WHERE p.materiel_id = ? AND p.retour_confirme = 0 LIMIT 1''',
             (mat['id'],)
         ).fetchone()
 
@@ -2886,14 +3006,14 @@ def api_scan():
         return jsonify({
             'found': True,
             'type': 'pret_actif',
-            'message': f'{label} — Prêt actif trouvé',
+            'message': f'{label} — Prêté à {pret["prenom"]} {pret["nom"]}',
             'url': url_for('detail_pret', pret_id=pret['id']),
         })
     else:
         return jsonify({
             'found': True,
             'type': 'materiel',
-            'message': f'{label} — {mat["etat"]}',
+            'message': f'{label} — {mat["etat"].replace("_", " ").title()}',
             'url': url_for('modifier_materiel', mat_id=mat['id']),
         })
 
@@ -3219,6 +3339,328 @@ def fiche_pret_vierge():
     """Fiche de prêt vierge avec champs à remplir manuellement."""
     nom_etablissement = get_setting('nom_etablissement', '')
     return render_template('fiche_pret_vierge.html', nom_etablissement=nom_etablissement)
+
+
+# ============================================================
+#  STATISTIQUES
+# ============================================================
+
+@app.route('/statistiques')
+@admin_required
+def statistiques():
+    """Tableau de bord statistique avec graphiques et export."""
+    conn = get_db()
+
+    # ── Stats générales ──
+    total_prets = conn.execute('SELECT COUNT(*) FROM prets').fetchone()[0]
+    prets_actifs = conn.execute('SELECT COUNT(*) FROM prets WHERE retour_confirme = 0').fetchone()[0]
+    prets_retournes = conn.execute('SELECT COUNT(*) FROM prets WHERE retour_confirme = 1').fetchone()[0]
+    total_personnes = conn.execute('SELECT COUNT(*) FROM personnes WHERE actif = 1').fetchone()[0]
+    total_materiel = conn.execute('SELECT COUNT(*) FROM inventaire WHERE actif = 1').fetchone()[0]
+
+    # ── Prêts par mois (12 derniers mois) ──
+    prets_par_mois = conn.execute('''
+        SELECT strftime('%Y-%m', date_emprunt) AS mois, COUNT(*) AS nb
+        FROM prets
+        WHERE date_emprunt >= date('now', '-12 months')
+        GROUP BY mois
+        ORDER BY mois
+    ''').fetchall()
+
+    # ── Top 10 matériels les plus empruntés ──
+    top_materiels = conn.execute('''
+        SELECT pm.description, COUNT(*) AS nb
+        FROM pret_materiels pm
+        JOIN prets p ON pm.pret_id = p.id
+        GROUP BY pm.description
+        ORDER BY nb DESC
+        LIMIT 10
+    ''').fetchall()
+
+    # ── Répartition par catégorie de personne ──
+    prets_par_categorie = conn.execute('''
+        SELECT pe.categorie, COUNT(*) AS nb
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        GROUP BY pe.categorie
+        ORDER BY nb DESC
+    ''').fetchall()
+
+    # ── Top 10 emprunteurs ──
+    top_emprunteurs = conn.execute('''
+        SELECT pe.nom, pe.prenom, pe.categorie, COUNT(*) AS nb
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        GROUP BY p.personne_id
+        ORDER BY nb DESC
+        LIMIT 10
+    ''').fetchall()
+
+    # ── Durée moyenne des prêts (en heures) ──
+    duree_moyenne = conn.execute('''
+        SELECT AVG(
+            CAST((julianday(date_retour) - julianday(date_emprunt)) * 24 AS REAL)
+        ) AS duree_moy_h
+        FROM prets
+        WHERE retour_confirme = 1 AND date_retour IS NOT NULL
+    ''').fetchone()
+    duree_moy_heures = round(duree_moyenne['duree_moy_h'] or 0, 1)
+
+    # ── Taux de retour à l'heure ──
+    duree_def = float(get_setting('duree_alerte_defaut', '7'))
+    unite_def = get_setting('duree_alerte_unite', 'jours')
+    prets_retournes_list = conn.execute('''
+        SELECT date_emprunt, date_retour, duree_pret_heures, duree_pret_jours
+        FROM prets WHERE retour_confirme = 1 AND date_retour IS NOT NULL
+    ''').fetchall()
+    retours_a_lheure = 0
+    for p in prets_retournes_list:
+        depasse, _ = calcul_depassement_heures(
+            p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
+            _duree_defaut=duree_def, _unite_defaut=unite_def
+        )
+        if not depasse:
+            retours_a_lheure += 1
+    taux_ponctualite = round((retours_a_lheure / len(prets_retournes_list) * 100) if prets_retournes_list else 0, 1)
+
+    # ── État du parc matériel ──
+    etats_materiel = conn.execute('''
+        SELECT etat, COUNT(*) AS nb FROM inventaire WHERE actif = 1 GROUP BY etat
+    ''').fetchall()
+
+    # ── Prêts par jour de la semaine ──
+    prets_par_jour = conn.execute('''
+        SELECT CAST(strftime('%w', date_emprunt) AS INTEGER) AS jour, COUNT(*) AS nb
+        FROM prets
+        GROUP BY jour
+        ORDER BY jour
+    ''').fetchall()
+
+    conn.close()
+
+    # Préparer les données JSON pour Chart.js
+    jours_semaine = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+
+    return render_template('statistiques.html',
+                           total_prets=total_prets,
+                           prets_actifs=prets_actifs,
+                           prets_retournes=prets_retournes,
+                           total_personnes=total_personnes,
+                           total_materiel=total_materiel,
+                           prets_par_mois=[dict(r) for r in prets_par_mois],
+                           top_materiels=[dict(r) for r in top_materiels],
+                           prets_par_categorie=[dict(r) for r in prets_par_categorie],
+                           top_emprunteurs=[dict(r) for r in top_emprunteurs],
+                           duree_moy_heures=duree_moy_heures,
+                           taux_ponctualite=taux_ponctualite,
+                           etats_materiel=[dict(r) for r in etats_materiel],
+                           prets_par_jour=[dict(r) for r in prets_par_jour],
+                           jours_semaine=jours_semaine)
+
+
+@app.route('/statistiques/export')
+@admin_required
+def export_statistiques():
+    """Export CSV des données de prêts."""
+    conn = get_db()
+    prets = conn.execute('''
+        SELECT p.id, pe.nom, pe.prenom, pe.categorie, pe.classe,
+               p.descriptif_objets, p.date_emprunt, p.date_retour,
+               p.retour_confirme, p.notes, p.type_duree,
+               p.duree_pret_jours, p.duree_pret_heures,
+               l.nom AS lieu
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        LEFT JOIN lieux l ON p.lieu_id = l.id
+        ORDER BY p.date_emprunt DESC
+    ''').fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(['ID', 'Nom', 'Prénom', 'Catégorie', 'Classe',
+                     'Objets', 'Date emprunt', 'Date retour',
+                     'Retourné', 'Notes', 'Type durée', 'Jours', 'Heures', 'Lieu'])
+    for p in prets:
+        writer.writerow([
+            p['id'], p['nom'], p['prenom'], p['categorie'], p['classe'],
+            p['descriptif_objets'], p['date_emprunt'], p['date_retour'] or '',
+            'Oui' if p['retour_confirme'] else 'Non', p['notes'],
+            p['type_duree'], p['duree_pret_jours'] or '', p['duree_pret_heures'] or '',
+            p['lieu'] or ''
+        ])
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=pretgo_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'}
+    )
+
+
+# ============================================================
+#  CHAMPS PERSONNALISÉS (DYNAMIQUES)
+# ============================================================
+
+@app.route('/admin/champs-personnalises')
+@admin_required
+def champs_personnalises():
+    """Gestion des champs personnalisés pour personnes et matériel."""
+    conn = get_db()
+    champs_personnes = conn.execute(
+        'SELECT * FROM champs_personnalises WHERE entite = ? ORDER BY ordre, id',
+        ('personne',)
+    ).fetchall()
+    champs_materiel = conn.execute(
+        'SELECT * FROM champs_personnalises WHERE entite = ? ORDER BY ordre, id',
+        ('materiel',)
+    ).fetchall()
+    conn.close()
+    return render_template('champs_personnalises.html',
+                           champs_personnes=champs_personnes,
+                           champs_materiel=champs_materiel)
+
+
+@app.route('/admin/champs-personnalises/ajouter', methods=['POST'])
+@admin_required
+def ajouter_champ_personnalise():
+    """Ajouter un champ personnalisé."""
+    entite = request.form.get('entite', 'personne')
+    label = request.form.get('label', '').strip()
+    type_champ = request.form.get('type_champ', 'texte')
+    options = request.form.get('options', '').strip()
+    obligatoire = 1 if request.form.get('obligatoire') else 0
+
+    if not label:
+        flash('Le libellé du champ est obligatoire.', 'danger')
+        return redirect(url_for('champs_personnalises'))
+
+    # Générer un nom de champ normalisé
+    nom_champ = re.sub(r'[^a-z0-9_]', '_', label.lower().strip())
+    nom_champ = re.sub(r'_+', '_', nom_champ).strip('_')
+
+    # Normaliser les accents
+    import unicodedata as ud
+    nom_champ = ud.normalize('NFKD', nom_champ).encode('ascii', 'ignore').decode('ascii')
+
+    conn = get_db()
+    # Trouver le prochain ordre
+    max_ordre = conn.execute(
+        'SELECT MAX(ordre) FROM champs_personnalises WHERE entite = ?', (entite,)
+    ).fetchone()[0] or 0
+
+    conn.execute(
+        '''INSERT INTO champs_personnalises (entite, nom_champ, label, type_champ, options, obligatoire, ordre)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        (entite, nom_champ, label, type_champ, options, obligatoire, max_ordre + 1)
+    )
+    conn.commit()
+    conn.close()
+
+    type_label = 'personne' if entite == 'personne' else 'matériel'
+    flash(f'Champ « {label} » ajouté pour les fiches {type_label}.', 'success')
+    return redirect(url_for('champs_personnalises'))
+
+
+@app.route('/admin/champs-personnalises/supprimer/<int:champ_id>', methods=['POST'])
+@admin_required
+def supprimer_champ_personnalise(champ_id):
+    """Supprimer un champ personnalisé et ses valeurs."""
+    conn = get_db()
+    champ = conn.execute('SELECT label, entite FROM champs_personnalises WHERE id = ?', (champ_id,)).fetchone()
+    if champ:
+        conn.execute('DELETE FROM valeurs_champs_personnalises WHERE champ_id = ?', (champ_id,))
+        conn.execute('DELETE FROM champs_personnalises WHERE id = ?', (champ_id,))
+        conn.commit()
+        flash(f'Champ « {champ["label"]} » supprimé.', 'success')
+    conn.close()
+    return redirect(url_for('champs_personnalises'))
+
+
+@app.route('/admin/champs-personnalises/modifier/<int:champ_id>', methods=['POST'])
+@admin_required
+def modifier_champ_personnalise(champ_id):
+    """Modifier un champ personnalisé."""
+    label = request.form.get('label', '').strip()
+    type_champ = request.form.get('type_champ', 'texte')
+    options = request.form.get('options', '').strip()
+    obligatoire = 1 if request.form.get('obligatoire') else 0
+
+    if not label:
+        flash('Le libellé est obligatoire.', 'danger')
+        return redirect(url_for('champs_personnalises'))
+
+    conn = get_db()
+    conn.execute(
+        '''UPDATE champs_personnalises
+           SET label = ?, type_champ = ?, options = ?, obligatoire = ?
+           WHERE id = ?''',
+        (label, type_champ, options, obligatoire, champ_id)
+    )
+    conn.commit()
+    conn.close()
+    flash(f'Champ « {label} » modifié.', 'success')
+    return redirect(url_for('champs_personnalises'))
+
+
+@app.route('/admin/champs-personnalises/ordre', methods=['POST'])
+@admin_required
+def reordonner_champs():
+    """Réordonner les champs via AJAX."""
+    data = request.get_json()
+    if not data or 'ordre' not in data:
+        return jsonify({'error': 'Données manquantes'}), 400
+
+    conn = get_db()
+    for i, champ_id in enumerate(data['ordre']):
+        conn.execute('UPDATE champs_personnalises SET ordre = ? WHERE id = ?', (i, champ_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+def get_champs_personnalises(entite):
+    """Récupérer les champs personnalisés actifs pour une entité."""
+    conn = get_db()
+    champs = conn.execute(
+        'SELECT * FROM champs_personnalises WHERE entite = ? AND actif = 1 ORDER BY ordre, id',
+        (entite,)
+    ).fetchall()
+    conn.close()
+    return champs
+
+
+def get_valeurs_champs(entite_id, entite_type):
+    """Récupérer les valeurs des champs personnalisés pour une entité."""
+    conn = get_db()
+    valeurs = conn.execute('''
+        SELECT cp.nom_champ, vcp.valeur
+        FROM valeurs_champs_personnalises vcp
+        JOIN champs_personnalises cp ON vcp.champ_id = cp.id
+        WHERE vcp.entite_id = ? AND cp.entite = ?
+    ''', (entite_id, entite_type)).fetchall()
+    conn.close()
+    return {v['nom_champ']: v['valeur'] for v in valeurs}
+
+
+def sauver_valeurs_champs(entite_id, entite_type, form_data):
+    """Sauvegarder les valeurs des champs personnalisés."""
+    champs = get_champs_personnalises(entite_type)
+    conn = get_db()
+    for champ in champs:
+        valeur = form_data.get(f'custom_{champ["nom_champ"]}', '').strip()
+        # Upsert : supprimer puis insérer
+        conn.execute(
+            'DELETE FROM valeurs_champs_personnalises WHERE champ_id = ? AND entite_id = ?',
+            (champ['id'], entite_id)
+        )
+        if valeur:
+            conn.execute(
+                'INSERT INTO valeurs_champs_personnalises (champ_id, entite_id, valeur) VALUES (?, ?, ?)',
+                (champ['id'], entite_id, valeur)
+            )
+    conn.commit()
+    conn.close()
 
 
 # ============================================================

@@ -132,7 +132,9 @@
                     <div class="col-4 text-muted">Retour théorique</div>
                     <div class="col-8">
                         {% set retour_theo = pret | retour_theorique %}
-                        {% if retour_theo %}
+                        {% if pret.type_duree == 'aucune' or (pret.type_duree is not defined and not pret.duree_pret_heures and not pret.duree_pret_jours) %}
+                            <span class="text-muted">Aucune durée</span>
+                        {% elif retour_theo %}
                             <i class="bi bi-calendar-event text-primary"></i>
                             {{ retour_theo }}
                         {% else %}

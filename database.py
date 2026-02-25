@@ -140,6 +140,26 @@ def init_db():
             actif INTEGER DEFAULT 1,
             date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS champs_personnalises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entite TEXT NOT NULL CHECK(entite IN ('personne', 'materiel')),
+            nom_champ TEXT NOT NULL,
+            label TEXT NOT NULL,
+            type_champ TEXT NOT NULL DEFAULT 'texte' CHECK(type_champ IN ('texte', 'nombre', 'date', 'choix', 'case_a_cocher', 'texte_long')),
+            options TEXT DEFAULT '',
+            obligatoire INTEGER DEFAULT 0,
+            ordre INTEGER DEFAULT 0,
+            actif INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS valeurs_champs_personnalises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            champ_id INTEGER NOT NULL,
+            entite_id INTEGER NOT NULL,
+            valeur TEXT DEFAULT '',
+            FOREIGN KEY (champ_id) REFERENCES champs_personnalises(id) ON DELETE CASCADE
+        );
     ''')
 
     # ── Migrations colonnes prets ──
@@ -241,8 +261,15 @@ def init_db():
         'impression_texte_libre': '',
         # ── Scanner de codes-barres ──
         'mode_scanner': 'les_deux',
+        'scanner_prefixe': '',
+        'scanner_suffixe': '',
         # ── Heure de fin de journée ──
         'heure_fin_journee': '17:45',
+        # ── Thème personnalisable ──
+        'theme_couleur_primaire': '#1a73e8',
+        'theme_couleur_navbar': '#1a56db',
+        'theme_logo': '',
+        'theme_nom_application': 'PretGo',
     }
     for cle, valeur in parametres_defaut.items():
         try:

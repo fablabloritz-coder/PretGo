@@ -50,6 +50,49 @@
                 </div>
             </div>
 
+            <!-- Champs personnalisés -->
+            {% if champs_custom %}
+            <hr class="my-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-input-cursor-text text-primary"></i> Champs supplémentaires</h6>
+            <div class="row g-3">
+                {% for champ in champs_custom %}
+                <div class="col-12 col-md-6">
+                    <label for="custom_{{ champ.nom_champ }}" class="form-label fw-bold">
+                        {{ champ.label }}
+                        {% if champ.obligatoire %}<span class="text-danger">*</span>{% endif %}
+                    </label>
+                    {% if champ.type_champ == 'texte' %}
+                    <input type="text" id="custom_{{ champ.nom_champ }}" name="custom_{{ champ.nom_champ }}"
+                           class="form-control" {{ 'required' if champ.obligatoire }}>
+                    {% elif champ.type_champ == 'texte_long' %}
+                    <textarea id="custom_{{ champ.nom_champ }}" name="custom_{{ champ.nom_champ }}"
+                              class="form-control" rows="3" {{ 'required' if champ.obligatoire }}></textarea>
+                    {% elif champ.type_champ == 'nombre' %}
+                    <input type="number" id="custom_{{ champ.nom_champ }}" name="custom_{{ champ.nom_champ }}"
+                           class="form-control" step="any" {{ 'required' if champ.obligatoire }}>
+                    {% elif champ.type_champ == 'date' %}
+                    <input type="date" id="custom_{{ champ.nom_champ }}" name="custom_{{ champ.nom_champ }}"
+                           class="form-control" {{ 'required' if champ.obligatoire }}>
+                    {% elif champ.type_champ == 'choix' %}
+                    <select id="custom_{{ champ.nom_champ }}" name="custom_{{ champ.nom_champ }}"
+                            class="form-select" {{ 'required' if champ.obligatoire }}>
+                        <option value="">-- Choisir --</option>
+                        {% for opt in champ.options.split(',') %}
+                        <option value="{{ opt.strip() }}">{{ opt.strip() }}</option>
+                        {% endfor %}
+                    </select>
+                    {% elif champ.type_champ == 'case_a_cocher' %}
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" id="custom_{{ champ.nom_champ }}"
+                               name="custom_{{ champ.nom_champ }}" value="Oui">
+                        <label class="form-check-label" for="custom_{{ champ.nom_champ }}">{{ champ.label }}</label>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             <hr class="my-4">
 
             <div class="d-flex gap-3">

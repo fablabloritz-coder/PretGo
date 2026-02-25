@@ -613,6 +613,142 @@
                         <i class="bi bi-check-lg"></i> Enregistrer
                     </button>
                 </form>
+
+                <hr class="my-4">
+
+                <!-- Préfixe/Suffixe douchette -->
+                <h6 class="fw-bold mb-2">
+                    <i class="bi bi-input-cursor text-info"></i>
+                    Préfixe / Suffixe de douchette
+                </h6>
+                <p class="text-muted small">
+                    Certaines douchettes ajoutent des caractères avant ou après le code-barres.
+                    Configurez ici le préfixe et/ou suffixe à supprimer automatiquement lors du scan.
+                </p>
+                <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <input type="hidden" name="action" value="scanner_prefixe_suffixe">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Préfixe (optionnel)</label>
+                            <input type="text" name="scanner_prefixe" class="form-control"
+                                   value="{{ scanner_prefixe }}"
+                                   placeholder="Ex: AIM, STX...">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Suffixe (optionnel)</label>
+                            <input type="text" name="scanner_suffixe" class="form-control"
+                                   value="{{ scanner_suffixe }}"
+                                   placeholder="Ex: CR, LF...">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Enregistrer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Thème personnalisable ═══ -->
+    <div class="col-12 col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-palette-fill text-primary"></i>
+                    Thème & Personnalisation
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted">
+                    Personnalisez l'apparence de PretGo avec le logo et les couleurs de votre structure.
+                </p>
+                <form method="POST" action="{{ url_for('admin_reglages') }}" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="theme">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nom de l'application</label>
+                        <input type="text" name="theme_nom_application" class="form-control"
+                               value="{{ theme_nom_application }}" placeholder="PretGo" maxlength="50">
+                        <div class="form-text">Apparaît dans la barre de navigation.</div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">Couleur principale</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color" name="theme_couleur_primaire" class="form-control form-control-color"
+                                       value="{{ theme_couleur_primaire }}" title="Couleur principale" style="min-height:42px;">
+                                <code id="color_hex_1">{{ theme_couleur_primaire }}</code>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">Couleur barre navigation</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color" name="theme_couleur_navbar" class="form-control form-control-color"
+                                       value="{{ theme_couleur_navbar }}" title="Couleur navbar" style="min-height:42px;">
+                                <code id="color_hex_2">{{ theme_couleur_navbar }}</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Logo personnalisé</label>
+                        {% if theme_logo %}
+                        <div class="mb-2 d-flex align-items-center gap-3">
+                            <img src="{{ url_for('static', filename=theme_logo) }}" alt="Logo actuel" height="40" style="border-radius:6px; border:1px solid #ddd;">
+                            <span class="text-muted small">Logo actuel</span>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="supprimer_logo" value="1" id="supprLogoSwitch">
+                                <label class="form-check-label text-danger small" for="supprLogoSwitch">
+                                    Supprimer le logo
+                                </label>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <input type="file" name="theme_logo_file" class="form-control" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
+                        <div class="form-text">Image PNG, JPG, GIF, WebP ou SVG (max recommandé : 200×200px).</div>
+                    </div>
+
+                    <!-- Aperçu du thème -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Aperçu</label>
+                        <div class="rounded p-3 d-flex align-items-center gap-2" id="theme-preview"
+                             style="background: linear-gradient(135deg, {{ theme_couleur_navbar }}, {{ theme_couleur_primaire }}); color: white;">
+                            {% if theme_logo %}
+                            <img src="{{ url_for('static', filename=theme_logo) }}" alt="Logo" height="28" style="border-radius:4px;">
+                            {% else %}
+                            <img src="{{ url_for('static', filename='PretGo.png') }}" alt="Logo" height="28">
+                            {% endif %}
+                            <strong id="theme-preview-name">{{ theme_nom_application }}</strong>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-lg"></i> Enregistrer le thème
+                    </button>
+                </form>
+
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const c1 = document.querySelector('input[name="theme_couleur_primaire"]');
+                    const c2 = document.querySelector('input[name="theme_couleur_navbar"]');
+                    const nameInput = document.querySelector('input[name="theme_nom_application"]');
+                    const preview = document.getElementById('theme-preview');
+                    const previewName = document.getElementById('theme-preview-name');
+                    const hex1 = document.getElementById('color_hex_1');
+                    const hex2 = document.getElementById('color_hex_2');
+
+                    function updatePreview() {
+                        preview.style.background = 'linear-gradient(135deg, ' + c2.value + ', ' + c1.value + ')';
+                        previewName.textContent = nameInput.value || 'PretGo';
+                        hex1.textContent = c1.value;
+                        hex2.textContent = c2.value;
+                    }
+                    c1.addEventListener('input', updatePreview);
+                    c2.addEventListener('input', updatePreview);
+                    nameInput.addEventListener('input', updatePreview);
+                });
+                </script>
             </div>
         </div>
     </div>

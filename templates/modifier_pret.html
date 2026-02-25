@@ -147,16 +147,16 @@
                 </label>
 
                 {# Rétrocompatibilité : si type_duree n'existe pas (anciens prêts), on déduit le type #}
-                {% set effective_type = pret.type_duree or ('heures' if pret.duree_pret_heures else ('jours' if pret.duree_pret_jours else 'defaut')) %}
+                {% set effective_type = pret.type_duree or ('heures' if pret.duree_pret_heures else ('jours' if pret.duree_pret_jours else 'aucune')) %}
                 <div class="row g-2 mb-2">
                     <div class="col-auto">
                         <div class="form-check form-check-inline">
                             <input class="form-check-input" type="radio" name="duree_type"
-                                   id="duree_defaut" value="defaut"
-                                   {% if effective_type == 'defaut' %}checked{% endif %}
+                                   id="duree_aucune" value="aucune"
+                                   {% if effective_type == 'aucune' %}checked{% endif %}
                                    onchange="toggleDuree()">
-                            <label class="form-check-label" for="duree_defaut">
-                                Par défaut ({{ duree_defaut }} {{ 'heure(s)' if unite_defaut == 'heures' else 'jour(s)' }})
+                            <label class="form-check-label" for="duree_aucune">
+                                Aucune durée (utilisera la durée d'alerte admin)
                             </label>
                         </div>
                     </div>

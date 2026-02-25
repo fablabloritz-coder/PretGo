@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Statistiques - {{ theme.nom_application }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-graph-up text-primary"></i> Statistiques
+    </h1>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('export_statistiques') }}" class="btn btn-success">
+            <i class="bi bi-download"></i> Exporter CSV
+        </a>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
+            <i class="bi bi-arrow-left"></i> Administration
+        </a>
+    </div>
+</div>
+
+<!-- Indicateurs clés -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-2">
+        <div class="stat-card bg-primary bg-opacity-10">
+            <div class="number text-primary">{{ total_prets }}</div>
+            <div class="label">Total prêts</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="stat-card bg-warning bg-opacity-10">
+            <div class="number text-warning">{{ prets_actifs }}</div>
+            <div class="label">En cours</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="stat-card bg-success bg-opacity-10">
+            <div class="number text-success">{{ prets_retournes }}</div>
+            <div class="label">Retournés</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="stat-card bg-info bg-opacity-10">
+            <div class="number text-info">{{ total_personnes }}</div>
+            <div class="label">Personnes</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="stat-card bg-secondary bg-opacity-10">
+            <div class="number text-secondary">{{ total_materiel }}</div>
+            <div class="label">Matériels</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="stat-card" style="background-color: rgba(13,144,79,0.1);">
+            <div class="number" style="color:#0d904f;">{{ taux_ponctualite }}%</div>
+            <div class="label">Ponctualité</div>
+        </div>
+    </div>
+</div>
+
+<!-- Durée moyenne -->
+<div class="alert alert-light border mb-4">
+    <i class="bi bi-clock text-primary me-2"></i>
+    <strong>Durée moyenne d'un prêt :</strong>
+    {% if duree_moy_heures < 24 %}
+        {{ duree_moy_heures }} heure(s)
+    {% else %}
+        {{ (duree_moy_heures / 24)|round(1) }} jour(s)
+    {% endif %}
+    &nbsp;—&nbsp;
+    <strong>Taux de ponctualité :</strong> {{ taux_ponctualite }}% des retours dans les délais
+</div>
+
+<div class="row g-4">
+    <!-- Graphique : Prêts par mois -->
+    <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-bar-chart text-primary"></i> Prêts par mois (12 derniers mois)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartMois" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique : Répartition par catégorie -->
+    <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-pie-chart text-primary"></i> Par catégorie</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartCategorie" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique : Prêts par jour de la semaine -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-calendar-week text-primary"></i> Prêts par jour de la semaine</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartJours" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique : État du parc matériel -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-pc-display text-primary"></i> État du parc matériel</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartEtat" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top 10 matériels les plus empruntés -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-trophy text-warning"></i> Top 10 matériels empruntés</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if top_materiels %}
+                <div class="table-responsive">
+                    <table class="table table-touch table-hover mb-0">
+                        <thead>
+                            <tr><th>#</th><th>Matériel</th><th>Nb prêts</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for m in top_materiels %}
+                            <tr>
+                                <td><span class="badge bg-primary">{{ loop.index }}</span></td>
+                                <td>{{ m.description }}</td>
+                                <td><strong>{{ m.nb }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state py-4">
+                    <i class="bi bi-inbox"></i>
+                    <p>Aucune donnée disponible</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Top 10 emprunteurs -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-people text-info"></i> Top 10 emprunteurs</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if top_emprunteurs %}
+                <div class="table-responsive">
+                    <table class="table table-touch table-hover mb-0">
+                        <thead>
+                            <tr><th>#</th><th>Personne</th><th>Catégorie</th><th>Nb prêts</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for e in top_emprunteurs %}
+                            <tr>
+                                <td><span class="badge bg-info">{{ loop.index }}</span></td>
+                                <td><strong>{{ e.nom }} {{ e.prenom }}</strong></td>
+                                <td><span class="cat-badge" style="{{ e.categorie | style_categorie }}">{{ e.categorie | label_categorie }}</span></td>
+                                <td><strong>{{ e.nb }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state py-4">
+                    <i class="bi bi-inbox"></i>
+                    <p>Aucune donnée disponible</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const couleurPrimaire = '{{ theme.couleur_primaire }}';
+
+    // ── Prêts par mois ──
+    const dataMois = {{ prets_par_mois | tojson }};
+    const moisLabels = {
+        '01': 'Jan', '02': 'Fév', '03': 'Mar', '04': 'Avr',
+        '05': 'Mai', '06': 'Juin', '07': 'Juil', '08': 'Août',
+        '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Déc'
+    };
+    new Chart(document.getElementById('chartMois'), {
+        type: 'bar',
+        data: {
+            labels: dataMois.map(d => {
+                const parts = d.mois.split('-');
+                return moisLabels[parts[1]] + ' ' + parts[0].slice(2);
+            }),
+            datasets: [{
+                label: 'Prêts',
+                data: dataMois.map(d => d.nb),
+                backgroundColor: couleurPrimaire + '99',
+                borderColor: couleurPrimaire,
+                borderWidth: 2,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+
+    // ── Répartition par catégorie ──
+    const dataCat = {{ prets_par_categorie | tojson }};
+    const catColors = ['#1a73e8', '#0d904f', '#ea8600', '#d93025', '#9c27b0', '#00bcd4', '#795548', '#607d8b'];
+    new Chart(document.getElementById('chartCategorie'), {
+        type: 'doughnut',
+        data: {
+            labels: dataCat.map(d => d.categorie.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())),
+            datasets: [{
+                data: dataCat.map(d => d.nb),
+                backgroundColor: catColors.slice(0, dataCat.length),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } }
+            }
+        }
+    });
+
+    // ── Prêts par jour ──
+    const dataJours = {{ prets_par_jour | tojson }};
+    const joursSemaine = {{ jours_semaine | tojson }};
+    const joursData = new Array(7).fill(0);
+    dataJours.forEach(d => { joursData[d.jour] = d.nb; });
+    new Chart(document.getElementById('chartJours'), {
+        type: 'bar',
+        data: {
+            labels: joursSemaine,
+            datasets: [{
+                label: 'Prêts',
+                data: joursData,
+                backgroundColor: '#0d904f99',
+                borderColor: '#0d904f',
+                borderWidth: 2,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+
+    // ── État du parc ──
+    const dataEtat = {{ etats_materiel | tojson }};
+    const etatLabels = {
+        'disponible': 'Disponible', 'prete': 'Prêté',
+        'en_reparation': 'En réparation', 'hors_service': 'Hors service'
+    };
+    const etatColors = {
+        'disponible': '#0d904f', 'prete': '#ea8600',
+        'en_reparation': '#1a73e8', 'hors_service': '#d93025'
+    };
+    new Chart(document.getElementById('chartEtat'), {
+        type: 'doughnut',
+        data: {
+            labels: dataEtat.map(d => etatLabels[d.etat] || d.etat),
+            datasets: [{
+                data: dataEtat.map(d => d.nb),
+                backgroundColor: dataEtat.map(d => etatColors[d.etat] || '#607d8b'),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
