@@ -27,7 +27,7 @@
             {% endif %}
         </div>
     </div>
-    <a href="{{ url_for('inventaire') }}" class="btn btn-outline-dark">
+    <a href="{{ url_for('inventaire.inventaire') }}" class="btn btn-outline-dark">
         <i class="bi bi-arrow-left"></i> Retour inventaire
     </a>
 </div>
@@ -127,7 +127,7 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <a href="{{ url_for('detail_pret', pret_id=pret.id) }}"
+                            <a href="{{ url_for('prets.detail_pret', pret_id=pret.id) }}"
                                class="btn btn-sm btn-outline-primary" title="Voir le détail">
                                 <i class="bi bi-eye"></i>
                             </a>

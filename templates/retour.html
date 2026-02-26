@@ -9,7 +9,7 @@
 <!-- Barre de recherche -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <form method="GET" action="{{ url_for('retour') }}">
+        <form method="GET" action="{{ url_for('prets.retour') }}">
             <div class="search-box">
                 <i class="bi bi-search"></i>
                 <input type="text"
@@ -40,7 +40,7 @@
     </div>
 </div>
 
-<form id="form-retour-masse" method="POST" action="{{ url_for('retour_masse') }}">
+<form id="form-retour-masse" method="POST" action="{{ url_for('prets.retour_masse') }}">
 {% for pret in prets %}
 {% set jours = pret.date_emprunt | jours_ecoules %}
 <div class="pret-card {% if jours > 14 %}border-danger{% elif jours > 7 %}border-warning{% endif %}">
@@ -85,7 +85,7 @@
                 Confirmer le retour de <em>{{ pret.descriptif_objets }}</em> par {{ pret.nom }} {{ pret.prenom }} ?
             </p>
             <div class="d-flex gap-2 align-items-center">
-                <button type="submit" class="btn btn-success" formaction="{{ url_for('confirmer_retour', pret_id=pret.id) }}">
+                <button type="submit" class="btn btn-success" formaction="{{ url_for('prets.confirmer_retour', pret_id=pret.id) }}">
                     <i class="bi bi-check-lg"></i> Oui, valider le retour
                 </button>
                 <button type="button" class="btn btn-outline-secondary"
@@ -127,7 +127,7 @@
     <i class="bi bi-check-circle"></i>
     {% if recherche %}
         <p>Aucun prêt en cours ne correspond à « {{ recherche }} »</p>
-        <a href="{{ url_for('retour') }}" class="btn btn-outline-primary">
+        <a href="{{ url_for('prets.retour') }}" class="btn btn-outline-primary">
             <i class="bi bi-arrow-left"></i> Voir tous les prêts
         </a>
     {% else %}

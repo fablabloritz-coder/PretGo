@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-pencil-square text-warning"></i> Modifier le prêt #{{ pret.id }}
     </h1>
-    <a href="{{ url_for('detail_pret', pret_id=pret.id) }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('prets.detail_pret', pret_id=pret.id) }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Retour au détail
     </a>
 </div>
@@ -21,7 +21,7 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-        <form method="POST" action="{{ url_for('modifier_pret', pret_id=pret.id) }}" id="formModifierPret">
+        <form method="POST" action="{{ url_for('prets.modifier_pret', pret_id=pret.id) }}" id="formModifierPret">
             <input type="hidden" id="personne_id" name="personne_id" value="{{ pret.personne_id }}">
 
             <!-- Étape 1 : Sélection de la personne -->
@@ -285,7 +285,7 @@
                 <button type="submit" class="btn btn-warning btn-lg flex-grow-1">
                     <i class="bi bi-check-lg"></i> Enregistrer les modifications
                 </button>
-                <a href="{{ url_for('detail_pret', pret_id=pret.id) }}" class="btn btn-outline-secondary btn-lg">
+                <a href="{{ url_for('prets.detail_pret', pret_id=pret.id) }}" class="btn btn-outline-secondary btn-lg">
                     <i class="bi bi-x-lg"></i> Annuler
                 </a>
             </div>
@@ -441,7 +441,7 @@ function toggleDuree() {
     });
 
     function searchInventaire(row, query) {
-        fetch('{{ url_for("api_inventaire") }}?q=' + encodeURIComponent(query))
+        fetch('{{ url_for("api.api_inventaire") }}?q=' + encodeURIComponent(query))
             .then(r => r.json())
             .then(items => {
                 const box = row.querySelector('.item-suggestions');

@@ -344,6 +344,55 @@ print('[17] Sauvegarde admin...')
 get('/admin/sauvegarder', label='Sauvegarder base')
 
 # ═══════════════════════════════════════════════════════
+#  17b. BACKUP AUTOMATIQUE
+# ═══════════════════════════════════════════════════════
+print('[17b] Backup automatique...')
+# Configurer le backup auto
+post('/admin/reglages', {
+    'action': 'backup_auto',
+    'backup_auto_active': '1',
+    'backup_auto_frequence': 'quotidien',
+    'backup_auto_nombre_max': '3',
+    'backup_auto_chemin': ''
+}, label='Configurer backup auto')
+
+# Lancer un backup manuel immédiat
+post('/admin/reglages', {
+    'action': 'backup_auto_maintenant'
+}, label='Lancer backup auto maintenant')
+
+# Tester la fonction effectuer_backup directement
+with app.app_context():
+    from utils import effectuer_backup as _eb
+    from database import get_setting as _gs, BACKUP_DIR as _bdir
+    import glob as _glob
+
+    success, msg, fpath = _eb()
+    if success and fpath and os.path.exists(fpath):
+        ok += 1
+        print(f'  effectuer_backup() OK: {os.path.basename(fpath)}')
+    else:
+        errors.append(f'effectuer_backup() échoué: {msg}')
+
+    # Vérifier que le fichier .pretgo contient la base
+    import zipfile as _zf
+    if fpath and os.path.exists(fpath):
+        with _zf.ZipFile(fpath, 'r') as z:
+            if 'gestion_prets.db' in z.namelist():
+                ok += 1
+                print('  Fichier .pretgo contient la base de données')
+            else:
+                errors.append('Fichier .pretgo ne contient pas gestion_prets.db')
+
+    # Vérifier la rotation (max 3 fichiers auto)
+    autos = sorted(_glob.glob(os.path.join(_bdir, 'PretGo_auto_*.pretgo')))
+    if len(autos) <= 3:
+        ok += 1
+        print(f'  Rotation OK: {len(autos)} fichier(s) auto')
+    else:
+        errors.append(f'Rotation backup: {len(autos)} fichiers (max attendu: 3)')
+
+# ═══════════════════════════════════════════════════════
 #  18. ADMIN : RESET PASSWORD PAGE
 # ═══════════════════════════════════════════════════════
 print('[18] Pages reset/setup password...')

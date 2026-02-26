@@ -118,7 +118,7 @@
 
 <!-- Barre d'outils -->
 <div class="toolbar">
-    <a class="btn-back" href="{{ url_for('etiquettes') }}"><i class="bi bi-arrow-left"></i> Retour</a>
+    <a class="btn-back" href="{{ url_for('inventaire.etiquettes') }}"><i class="bi bi-arrow-left"></i> Retour</a>
     <h1><i class="bi bi-tag"></i> Étiquettes</h1>
     <span class="info">{{ items|length }} étiquette(s) — {{ colonnes }}x{{ lignes }} par page</span>
     <button class="btn-print" id="btnPrint" onclick="lancerImpression()">

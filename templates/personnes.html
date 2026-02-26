@@ -7,10 +7,10 @@
         <i class="bi bi-people-fill text-primary"></i> Personnes enregistrées
     </h1>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('export_page') }}" class="btn btn-outline-info">
+        <a href="{{ url_for('export.export_page') }}" class="btn btn-outline-info">
             <i class="bi bi-download"></i> Exporter
         </a>
-        <a href="{{ url_for('ajouter_personne') }}" class="btn btn-primary">
+        <a href="{{ url_for('personnes.ajouter_personne') }}" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Ajouter
         </a>
     </div>
@@ -18,18 +18,18 @@
 
 <!-- Filtres par catégorie -->
 <div class="filter-tabs">
-    <a href="{{ url_for('personnes', q=recherche) }}"
+    <a href="{{ url_for('personnes.personnes', q=recherche) }}"
        class="filter-tab {{ 'active' if filtre == 'tous' }}">
         Tous ({{ comptages.total }})
     </a>
     {% for cat in cats_list %}
-    <a href="{{ url_for('personnes', categorie=cat.cle, q=recherche) }}"
+    <a href="{{ url_for('personnes.personnes', categorie=cat.cle, q=recherche) }}"
        class="filter-tab {{ 'active' if filtre == cat.cle }}">
         <i class="bi {{ cat.icone }}"></i> {{ cat.libelle }} ({{ comptages.get(cat.cle, 0) }})
     </a>
     {% endfor %}
     {% if comptages.get('_autres', 0) > 0 %}
-    <a href="{{ url_for('personnes', categorie='_autres', q=recherche) }}"
+    <a href="{{ url_for('personnes.personnes', categorie='_autres', q=recherche) }}"
        class="filter-tab {{ 'active' if filtre == '_autres' }}">
         <i class="bi bi-question-circle"></i> Autres ({{ comptages._autres }})
     </a>
@@ -39,7 +39,7 @@
 <!-- Barre de recherche -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body py-2">
-        <form method="GET" action="{{ url_for('personnes') }}">
+        <form method="GET" action="{{ url_for('personnes.personnes') }}">
             <input type="hidden" name="categorie" value="{{ filtre }}">
             <div class="search-box">
                 <i class="bi bi-search"></i>
@@ -79,15 +79,15 @@
                         <td>{{ p.email or '—' }}</td>
                         <td class="text-end" style="white-space:nowrap;">
                             <div class="d-inline-flex align-items-center gap-1 justify-content-end">
-                                <a href="{{ url_for('historique_personne', personne_id=p.id) }}"
+                                <a href="{{ url_for('personnes.historique_personne', personne_id=p.id) }}"
                                    class="btn btn-sm btn-outline-secondary" title="Historique d'emprunts">
                                     <i class="bi bi-clock-history"></i>
                                 </a>
-                                <a href="{{ url_for('modifier_personne', personne_id=p.id) }}"
+                                <a href="{{ url_for('personnes.modifier_personne', personne_id=p.id) }}"
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <form method="POST" action="{{ url_for('supprimer_personne', personne_id=p.id) }}"
+                                <form method="POST" action="{{ url_for('personnes.supprimer_personne', personne_id=p.id) }}"
                                       class="d-inline"
                                       onsubmit="return confirm('Supprimer ' + {{ (p.prenom ~ ' ' ~ p.nom)|tojson }} + ' ?')">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -110,7 +110,7 @@
     <ul class="pagination pagination-lg">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('personnes', page=page-1, categorie=filtre, q=recherche or None) }}">
+            <a class="page-link" href="{{ url_for('personnes.personnes', page=page-1, categorie=filtre, q=recherche or None) }}">
                 <i class="bi bi-chevron-left"></i>
             </a>
         </li>
@@ -120,7 +120,7 @@
             <li class="page-item active"><span class="page-link">{{ p }}</span></li>
             {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
             <li class="page-item">
-                <a class="page-link" href="{{ url_for('personnes', page=p, categorie=filtre, q=recherche or None) }}">{{ p }}</a>
+                <a class="page-link" href="{{ url_for('personnes.personnes', page=p, categorie=filtre, q=recherche or None) }}">{{ p }}</a>
             </li>
             {% elif p == 4 or p == total_pages - 3 %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -128,7 +128,7 @@
         {% endfor %}
         {% if page < total_pages %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('personnes', page=page+1, categorie=filtre, q=recherche or None) }}">
+            <a class="page-link" href="{{ url_for('personnes.personnes', page=page+1, categorie=filtre, q=recherche or None) }}">
                 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
@@ -145,10 +145,10 @@
     <i class="bi bi-people"></i>
     <p>Aucune personne enregistrée</p>
     <div class="d-flex gap-2 justify-content-center">
-        <a href="{{ url_for('ajouter_personne') }}" class="btn btn-primary">
+        <a href="{{ url_for('personnes.ajouter_personne') }}" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Ajouter une personne
         </a>
-        <a href="{{ url_for('importer_personnes') }}" class="btn btn-outline-primary">
+        <a href="{{ url_for('personnes.importer_personnes') }}" class="btn btn-outline-primary">
             <i class="bi bi-file-earmark-arrow-up"></i> Importer un fichier CSV
         </a>
     </div>

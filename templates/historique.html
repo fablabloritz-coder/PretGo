@@ -9,13 +9,13 @@
     <div class="d-flex gap-2 align-items-center">
         {% if annees_disponibles %}
         <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href=this.value">
-            <option value="{{ url_for('historique') }}" {% if not annee %}selected{% endif %}>Toutes les années</option>
+            <option value="{{ url_for('core.historique') }}" {% if not annee %}selected{% endif %}>Toutes les années</option>
             {% for a in annees_disponibles %}
-            <option value="{{ url_for('historique', annee=a) }}" {% if annee == a %}selected{% endif %}>{{ a }}</option>
+            <option value="{{ url_for('core.historique', annee=a) }}" {% if annee == a %}selected{% endif %}>{{ a }}</option>
             {% endfor %}
         </select>
         {% endif %}
-        <a href="{{ url_for('export_page') }}" class="btn btn-outline-primary">
+        <a href="{{ url_for('export.export_page') }}" class="btn btn-outline-primary">
             <i class="bi bi-download"></i> Exporter en CSV
         </a>
     </div>
@@ -39,7 +39,7 @@
                 </thead>
                 <tbody>
                     {% for pret in prets %}
-                    <tr onclick="window.location='{{ url_for('detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
+                    <tr onclick="window.location='{{ url_for('prets.detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
                         <td>
                             {% if pret.retour_confirme %}
                                 <span class="badge-retourne"><i class="bi bi-check"></i> Retourné</span>
@@ -72,7 +72,7 @@
     <ul class="pagination pagination-lg">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('historique', page=page-1, annee=annee) }}">
+            <a class="page-link" href="{{ url_for('core.historique', page=page-1, annee=annee) }}">
                 <i class="bi bi-chevron-left"></i>
             </a>
         </li>
@@ -83,7 +83,7 @@
             <li class="page-item active"><span class="page-link">{{ p }}</span></li>
             {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
             <li class="page-item">
-                <a class="page-link" href="{{ url_for('historique', page=p, annee=annee) }}">{{ p }}</a>
+                <a class="page-link" href="{{ url_for('core.historique', page=p, annee=annee) }}">{{ p }}</a>
             </li>
             {% elif p == 4 or p == total_pages - 3 %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -92,7 +92,7 @@
 
         {% if page < total_pages %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('historique', page=page+1, annee=annee) }}">
+            <a class="page-link" href="{{ url_for('core.historique', page=page+1, annee=annee) }}">
                 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
@@ -109,7 +109,7 @@
 <div class="empty-state">
     <i class="bi bi-clock-history"></i>
     <p>Aucun prêt enregistré pour le moment</p>
-    <a href="{{ url_for('nouveau_pret') }}" class="btn btn-primary">
+    <a href="{{ url_for('prets.nouveau_pret') }}" class="btn btn-primary">
         <i class="bi bi-plus-lg"></i> Enregistrer un premier prêt
     </a>
 </div>

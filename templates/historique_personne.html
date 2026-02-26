@@ -16,10 +16,10 @@
         </div>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('modifier_personne', personne_id=personne.id) }}" class="btn btn-outline-primary">
+        <a href="{{ url_for('personnes.modifier_personne', personne_id=personne.id) }}" class="btn btn-outline-primary">
             <i class="bi bi-pencil"></i> Modifier
         </a>
-        <a href="{{ url_for('personnes') }}" class="btn btn-outline-dark">
+        <a href="{{ url_for('personnes.personnes') }}" class="btn btn-outline-dark">
             <i class="bi bi-arrow-left"></i> Retour personnes
         </a>
     </div>
@@ -141,7 +141,7 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <a href="{{ url_for('detail_pret', pret_id=pret.id) }}"
+                            <a href="{{ url_for('prets.detail_pret', pret_id=pret.id) }}"
                                class="btn btn-sm btn-outline-primary" title="Voir le détail">
                                 <i class="bi bi-eye"></i>
                             </a>

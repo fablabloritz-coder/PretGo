@@ -21,7 +21,7 @@
                         Première connexion ? Le mot de passe par défaut est <strong>1234</strong>
                     </div>
                     {% endif %}
-                    <form method="POST" action="{{ url_for('admin_login', next=request.args.get('next', '')) if request.args.get('next') else url_for('admin_login') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_login', next=request.args.get('next', '')) if request.args.get('next') else url_for('admin.admin_login') }}">
                         <div class="mb-4">
                             <label for="password" class="form-label fw-bold">Mot de passe</label>
                             <div class="input-group">
@@ -56,7 +56,7 @@
                         Entrez le code de récupération que vous trouverez dans le fichier
                         <code>data/code_recuperation.txt</code>
                     </p>
-                    <form method="POST" action="{{ url_for('admin_login') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_login') }}">
                         <input type="hidden" name="action" value="recovery">
                         <div class="mb-4">
                             <label for="recovery_code" class="form-label fw-bold">Code de récupération</label>
@@ -85,7 +85,7 @@
                 </div>
             </div>
             <div class="card-footer text-center bg-white py-3">
-                <a href="{{ url_for('index') }}" class="text-muted text-decoration-none">
+                <a href="{{ url_for('core.index') }}" class="text-muted text-decoration-none">
                     <i class="bi bi-arrow-left"></i> Retour à l'accueil
                 </a>
             </div>

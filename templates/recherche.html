@@ -9,7 +9,7 @@
 <!-- Formulaire de recherche -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <form method="GET" action="{{ url_for('recherche') }}">
+        <form method="GET" action="{{ url_for('core.recherche') }}">
             <div class="row g-3">
                 <div class="col-12 col-md-8">
                     <div class="search-box">
@@ -63,7 +63,7 @@
                     </thead>
                     <tbody>
                         {% for pret in resultats %}
-                        <tr onclick="window.location='{{ url_for('detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
+                        <tr onclick="window.location='{{ url_for('prets.detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
                             <td>
                                 {% if pret.retour_confirme %}
                                     <span class="badge-retourne"><i class="bi bi-check"></i> Retourné</span>

@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-input-cursor-text text-primary"></i> Champs & Fiches
     </h1>
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-dark">
         <i class="bi bi-arrow-left"></i> Administration
     </a>
 </div>
@@ -61,7 +61,7 @@
                             <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalModifierChamp{{ champ.id }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <form method="POST" action="{{ url_for('supprimer_champ_personnalise', champ_id=champ.id) }}"
+                            <form method="POST" action="{{ url_for('admin.supprimer_champ_personnalise', champ_id=champ.id) }}"
                                   onsubmit="return confirm('Supprimer le champ « {{ champ.label }} » et toutes ses valeurs ?')">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">
                                     <i class="bi bi-trash"></i>
@@ -74,7 +74,7 @@
                     <div class="modal fade" id="modalModifierChamp{{ champ.id }}" tabindex="-1">
                         <div class="modal-dialog">
                             <div class="modal-content">
-                                <form method="POST" action="{{ url_for('modifier_champ_personnalise', champ_id=champ.id) }}">
+                                <form method="POST" action="{{ url_for('admin.modifier_champ_personnalise', champ_id=champ.id) }}">
                                     <div class="modal-header">
                                         <h5 class="modal-title"><i class="bi bi-pencil"></i> Modifier le champ</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -173,7 +173,7 @@
                             <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalModifierChampM{{ champ.id }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <form method="POST" action="{{ url_for('supprimer_champ_personnalise', champ_id=champ.id) }}"
+                            <form method="POST" action="{{ url_for('admin.supprimer_champ_personnalise', champ_id=champ.id) }}"
                                   onsubmit="return confirm('Supprimer le champ « {{ champ.label }} » et toutes ses valeurs ?')">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">
                                     <i class="bi bi-trash"></i>
@@ -186,7 +186,7 @@
                     <div class="modal fade" id="modalModifierChampM{{ champ.id }}" tabindex="-1">
                         <div class="modal-dialog">
                             <div class="modal-content">
-                                <form method="POST" action="{{ url_for('modifier_champ_personnalise', champ_id=champ.id) }}">
+                                <form method="POST" action="{{ url_for('admin.modifier_champ_personnalise', champ_id=champ.id) }}">
                                     <div class="modal-header">
                                         <h5 class="modal-title"><i class="bi bi-pencil"></i> Modifier le champ</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -389,7 +389,7 @@
             Générez une fiche de prêt vierge imprimable directement depuis le navigateur (Ctrl+P).
             Les champs personnalisés définis ci-dessus y apparaîtront automatiquement.
         </p>
-        <a href="{{ url_for('fiche_pret_vierge') }}" class="btn btn-primary" target="_blank">
+        <a href="{{ url_for('core.fiche_pret_vierge') }}" class="btn btn-primary" target="_blank">
             <i class="bi bi-printer"></i> Ouvrir la fiche de prêt vierge
         </a>
     </div>
@@ -399,7 +399,7 @@
 <div class="modal fade" id="modalAjoutChamp" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST" action="{{ url_for('ajouter_champ_personnalise') }}">
+            <form method="POST" action="{{ url_for('admin.ajouter_champ_personnalise') }}">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Ajouter un champ personnalisé</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

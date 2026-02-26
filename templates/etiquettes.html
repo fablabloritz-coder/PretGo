@@ -28,12 +28,12 @@
 
 <!-- Filtres par type -->
 <div class="d-flex flex-wrap gap-2 mb-3">
-    <a href="{{ url_for('etiquettes') }}"
+    <a href="{{ url_for('inventaire.etiquettes') }}"
        class="btn {{ 'btn-dark' if filtre_type == 'tous' else 'btn-outline-dark' }} btn-sm">
         Tous ({{ comptages.total }})
     </a>
     {% for t in types %}
-    <a href="{{ url_for('etiquettes', type=t.type_materiel) }}"
+    <a href="{{ url_for('inventaire.etiquettes', type=t.type_materiel) }}"
        class="btn {{ 'btn-dark' if filtre_type == t.type_materiel else 'btn-outline-dark' }} btn-sm">
         {% if t.type_materiel == 'Ordinateur' %}
             <i class="bi bi-laptop"></i>
@@ -51,7 +51,7 @@
 
 <!-- Barre de recherche -->
 <div class="mb-4">
-    <form method="GET" action="{{ url_for('etiquettes') }}" class="d-flex gap-2">
+    <form method="GET" action="{{ url_for('inventaire.etiquettes') }}" class="d-flex gap-2">
         {% if filtre_type != 'tous' %}
         <input type="hidden" name="type" value="{{ filtre_type }}">
         {% endif %}
@@ -65,7 +65,7 @@
             <i class="bi bi-search"></i>
         </button>
         {% if recherche %}
-        <a href="{{ url_for('etiquettes', type=filtre_type if filtre_type != 'tous' else None) }}"
+        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None) }}"
            class="btn btn-outline-secondary">
             <i class="bi bi-x-lg"></i>
         </a>
@@ -203,7 +203,7 @@ function getSelectedIds() {
 function imprimerSelection() {
     const ids = getSelectedIds().join(',');
     if (ids) {
-        window.open("{{ url_for('imprimer_etiquettes') }}?ids=" + ids, '_blank');
+        window.open("{{ url_for('inventaire.imprimer_etiquettes') }}?ids=" + ids, '_blank');
     }
 }
 
@@ -213,7 +213,7 @@ function imprimerZebra() {
     if (!ids.length) return;
     if (!confirm('Envoyer ' + ids.length + ' étiquette(s) à l\'imprimante Zebra ?')) return;
 
-    fetch("{{ url_for('imprimer_zebra') }}", {
+    fetch("{{ url_for('inventaire.imprimer_zebra') }}", {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ids: ids})

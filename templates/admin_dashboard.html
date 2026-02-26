@@ -6,12 +6,21 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-shield-lock-fill text-dark"></i> Administration
     </h1>
-    <a href="{{ url_for('admin_logout') }}" class="btn btn-outline-dark">
+    <a href="{{ url_for('admin.admin_logout') }}" class="btn btn-outline-dark">
         <i class="bi bi-box-arrow-right"></i> Déconnexion
     </a>
 </div>
 
 <!-- Statistiques rapides -->
+{% if backup_alerte %}
+<div class="alert alert-{{ backup_alerte.type }} d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-{% if backup_alerte.type == 'danger' %}exclamation-triangle-fill{% else %}info-circle-fill{% endif %} me-2"></i>
+    <div>
+        <strong>Sauvegarde automatique :</strong> {{ backup_alerte.message }}
+        <a href="{{ url_for('admin.admin_reglages') }}#section-sauvegarde" class="alert-link ms-2">Réglages</a>
+    </div>
+</div>
+{% endif %}
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
         <div class="stat-card bg-primary bg-opacity-10">
@@ -54,7 +63,7 @@
                 <h5 class="mb-0"><i class="bi bi-gear-fill text-primary"></i> Réglages</h5>
             </div>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('admin_reglages') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('admin.admin_reglages') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-sliders2 text-primary me-3 fs-4"></i>
                     <div>
                         <strong>Réglages généraux</strong>
@@ -62,7 +71,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('categories') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('inventaire.categories') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-tags-fill text-primary me-3 fs-4"></i>
                     <div>
                         <strong>Catégories de matériel</strong>
@@ -70,7 +79,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('inventaire') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('inventaire.inventaire') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-pc-display text-primary me-3 fs-4"></i>
                     <div>
                         <strong>Inventaire matériel</strong>
@@ -78,7 +87,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('categories_personnes_admin') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('personnes.categories_personnes_admin') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-person-lines-fill text-primary me-3 fs-4"></i>
                     <div>
                         <strong>Catégories de personnes</strong>
@@ -86,7 +95,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('gestion_lieux') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('inventaire.gestion_lieux') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-geo-alt-fill text-primary me-3 fs-4"></i>
                     <div>
                         <strong>Lieux de prêt</strong>
@@ -94,7 +103,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('admin_rentree') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('admin.admin_rentree') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-calendar2-event text-info me-3 fs-4"></i>
                     <div>
                         <strong>Rentrée scolaire</strong>
@@ -113,7 +122,7 @@
                 <h5 class="mb-0"><i class="bi bi-arrow-left-right text-primary"></i> Import / Export</h5>
             </div>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('importer_personnes') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('personnes.importer_personnes') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-file-earmark-arrow-up-fill text-success me-3 fs-4"></i>
                     <div>
                         <strong>Importer des personnes</strong>
@@ -121,7 +130,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('export_page') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('export.export_page') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-download text-info me-3 fs-4"></i>
                     <div>
                         <strong>Exporter des données</strong>
@@ -129,7 +138,7 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
-                <a href="{{ url_for('importer_inventaire') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                <a href="{{ url_for('inventaire.importer_inventaire') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-file-earmark-arrow-up-fill text-warning me-3 fs-4"></i>
                     <div>
                         <strong>Importer l'inventaire</strong>
@@ -184,7 +193,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <form action="{{ url_for('admin_generer_demo') }}" method="POST" class="d-inline">
+                <form action="{{ url_for('admin.admin_generer_demo') }}" method="POST" class="d-inline">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-play-fill"></i> Générer
                     </button>

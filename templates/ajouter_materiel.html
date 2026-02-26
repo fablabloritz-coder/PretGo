@@ -6,14 +6,14 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-plus-circle-fill text-primary"></i> Ajouter un matériel
     </h1>
-    <a href="{{ url_for('inventaire') }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('inventaire.inventaire') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Retour à l'inventaire
     </a>
 </div>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-        <form method="POST" action="{{ url_for('ajouter_materiel') }}">
+        <form method="POST" action="{{ url_for('inventaire.ajouter_materiel') }}">
             <div class="row g-3">
                 <!-- Type de matériel -->
                 <div class="col-12 col-md-6">
@@ -149,7 +149,7 @@
                 <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
                     <i class="bi bi-check-lg"></i> Ajouter le matériel
                 </button>
-                <a href="{{ url_for('inventaire') }}" class="btn btn-outline-secondary btn-lg">
+                <a href="{{ url_for('inventaire.inventaire') }}" class="btn btn-outline-secondary btn-lg">
                     <i class="bi bi-x-lg"></i> Annuler
                 </a>
             </div>
@@ -186,8 +186,8 @@
 </div>
 
 <script>
-const UPLOAD_URL = '{{ url_for("api_upload_image") }}';
-const LIST_URL = '{{ url_for("api_liste_images") }}';
+const UPLOAD_URL = '{{ url_for("api.api_upload_image") }}';
+const LIST_URL = '{{ url_for("api.api_liste_images") }}';
 const BASE_IMG_URL = '{{ url_for("static", filename="uploads/materiel/") }}';
 
 function selectionnerImage(filename) {

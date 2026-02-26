@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-download text-primary"></i> Exporter des données
     </h1>
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Administration
     </a>
 </div>
@@ -32,7 +32,7 @@
                 <p class="text-muted small flex-grow-1">
                     Liste de toutes les personnes actives (nom, prénom, catégorie, classe).
                 </p>
-                <a href="{{ url_for('export_personnes') }}" class="btn btn-outline-primary w-100 {{ 'disabled' if counts.personnes == 0 }}">
+                <a href="{{ url_for('export.export_personnes') }}" class="btn btn-outline-primary w-100 {{ 'disabled' if counts.personnes == 0 }}">
                     <i class="bi bi-download"></i> Télécharger
                 </a>
             </div>
@@ -55,7 +55,7 @@
                 <p class="text-muted small flex-grow-1">
                     Tous les prêts actuellement en cours (non retournés).
                 </p>
-                <a href="{{ url_for('export_prets_en_cours') }}" class="btn btn-outline-warning w-100 {{ 'disabled' if counts.prets_en_cours == 0 }}">
+                <a href="{{ url_for('export.export_prets_en_cours') }}" class="btn btn-outline-warning w-100 {{ 'disabled' if counts.prets_en_cours == 0 }}">
                     <i class="bi bi-download"></i> Télécharger
                 </a>
             </div>
@@ -78,7 +78,7 @@
                 <p class="text-muted small flex-grow-1">
                     Prêts ayant dépassé la durée prévue (avec le temps de dépassement).
                 </p>
-                <a href="{{ url_for('export_alertes') }}" class="btn btn-outline-danger w-100 {{ 'disabled' if counts.alertes == 0 }}">
+                <a href="{{ url_for('export.export_alertes') }}" class="btn btn-outline-danger w-100 {{ 'disabled' if counts.alertes == 0 }}">
                     <i class="bi bi-download"></i> Télécharger
                 </a>
             </div>
@@ -101,7 +101,7 @@
                 <p class="text-muted small flex-grow-1">
                     Historique complet de tous les prêts (en cours + retournés).
                 </p>
-                <a href="{{ url_for('export_prets') }}" class="btn btn-outline-success w-100 {{ 'disabled' if counts.historique == 0 }}">
+                <a href="{{ url_for('export.export_prets') }}" class="btn btn-outline-success w-100 {{ 'disabled' if counts.historique == 0 }}">
                     <i class="bi bi-download"></i> Télécharger
                 </a>
             </div>
@@ -124,7 +124,7 @@
                 <p class="text-muted small flex-grow-1">
                     Liste complète du parc matériel (type, marque, modèle, n° série, n° inventaire, etc.).
                 </p>
-                <a href="{{ url_for('export_inventaire') }}" class="btn btn-outline-info w-100 {{ 'disabled' if counts.inventaire == 0 }}">
+                <a href="{{ url_for('export.export_inventaire') }}" class="btn btn-outline-info w-100 {{ 'disabled' if counts.inventaire == 0 }}">
                     <i class="bi bi-download"></i> Télécharger
                 </a>
             </div>

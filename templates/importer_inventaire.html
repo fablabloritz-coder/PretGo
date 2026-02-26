@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-file-earmark-arrow-up-fill text-success"></i> Importer l'inventaire
     </h1>
-    <a href="{{ url_for('inventaire') }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('inventaire.inventaire') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Retour à l'inventaire
     </a>
 </div>
@@ -19,7 +19,7 @@
                 <h5 class="mb-0"><i class="bi bi-upload text-success"></i> Charger un fichier CSV</h5>
             </div>
             <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('importer_inventaire') }}"
+                <form method="POST" action="{{ url_for('inventaire.importer_inventaire') }}"
                       enctype="multipart/form-data" id="form-import-inv">
                     <!-- Zone de drag & drop -->
                     <div id="drop-zone-inv" class="drop-zone mb-3"
@@ -79,7 +79,7 @@
                     (pc → Ordinateur, vp → Vidéoprojecteur, etc.)
                 </div>
 
-                <a href="{{ url_for('telecharger_gabarit_inventaire') }}"
+                <a href="{{ url_for('inventaire.telecharger_gabarit_inventaire') }}"
                    class="btn btn-outline-primary w-100">
                     <i class="bi bi-download"></i> Télécharger le gabarit CSV
                 </a>

@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-people-fill text-primary"></i> Catégories de personnes
     </h1>
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Retour
     </a>
 </div>
@@ -17,7 +17,7 @@
         <h5 class="mb-0"><i class="bi bi-plus-circle text-success"></i> Ajouter une catégorie</h5>
     </div>
     <div class="card-body">
-        <form method="POST" action="{{ url_for('categories_personnes_admin') }}">
+        <form method="POST" action="{{ url_for('personnes.categories_personnes_admin') }}">
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-md-3">
                     <label class="form-label fw-bold">Libellé <span class="text-danger">*</span></label>
@@ -97,7 +97,7 @@
                     <div class="modal fade" id="deleteModal{{ cat.id }}" tabindex="-1">
                         <div class="modal-dialog">
                             <div class="modal-content">
-                                <form method="POST" action="{{ url_for('supprimer_categorie_personne', cat_id=cat.id) }}">
+                                <form method="POST" action="{{ url_for('personnes.supprimer_categorie_personne', cat_id=cat.id) }}">
                                     <div class="modal-header bg-danger bg-opacity-10">
                                         <h5 class="modal-title text-danger">
                                             <i class="bi bi-trash"></i> Supprimer « {{ cat.libelle }} »
@@ -137,7 +137,7 @@
                     <div class="modal fade" id="editModal{{ cat.id }}" tabindex="-1">
                         <div class="modal-dialog">
                             <div class="modal-content">
-                                <form method="POST" action="{{ url_for('modifier_categorie_personne', cat_id=cat.id) }}">
+                                <form method="POST" action="{{ url_for('personnes.modifier_categorie_personne', cat_id=cat.id) }}">
                                     <div class="modal-header">
                                         <h5 class="modal-title">
                                             <i class="bi bi-pencil"></i> Modifier « {{ cat.libelle }} »

@@ -12,19 +12,19 @@
 <!-- Actions rapides -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
-        <a href="{{ url_for('nouveau_pret') }}" class="action-card nouveau">
+        <a href="{{ url_for('prets.nouveau_pret') }}" class="action-card nouveau">
             <i class="bi bi-plus-circle-fill"></i>
             Nouveau Prêt
         </a>
     </div>
     <div class="col-6 col-md-3">
-        <a href="{{ url_for('retour') }}" class="action-card retour">
+        <a href="{{ url_for('prets.retour') }}" class="action-card retour">
             <i class="bi bi-arrow-return-left"></i>
             Retour Matériel
         </a>
     </div>
     <div class="col-6 col-md-3">
-        <a href="{{ url_for('alertes') }}" class="action-card {% if nb_alertes > 0 %}alerte-active{% else %}recherche{% endif %}">
+        <a href="{{ url_for('core.alertes') }}" class="action-card {% if nb_alertes > 0 %}alerte-active{% else %}recherche{% endif %}">
             <i class="bi bi-exclamation-triangle-fill"></i>
             Alertes
             {% if nb_alertes > 0 %}
@@ -33,7 +33,7 @@
         </a>
     </div>
     <div class="col-6 col-md-3">
-        <a href="{{ url_for('personnes') }}" class="action-card personnes">
+        <a href="{{ url_for('personnes.personnes') }}" class="action-card personnes">
             <i class="bi bi-people-fill"></i>
             Personnes
         </a>
@@ -70,7 +70,7 @@
             Prêts en cours ({{ stats.actifs }})
         </h5>
         {% if prets_actifs %}
-        <a href="{{ url_for('retour') }}" class="btn btn-success">
+        <a href="{{ url_for('prets.retour') }}" class="btn btn-success">
             <i class="bi bi-arrow-return-left"></i> Gérer les retours
         </a>
         {% endif %}
@@ -93,7 +93,7 @@
                 <tbody>
                     {% for pret in prets_actifs %}
                     {% set jours = pret.date_emprunt | jours_ecoules %}
-                    <tr onclick="window.location='{{ url_for('detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
+                    <tr onclick="window.location='{{ url_for('prets.detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
                         <td>
                             <strong>{{ pret.nom }} {{ pret.prenom }}</strong>
                             {% if pret.date_modification %}
@@ -149,7 +149,7 @@
                 </thead>
                 <tbody>
                     {% for pret in derniers_retours %}
-                    <tr onclick="window.location='{{ url_for('detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
+                    <tr onclick="window.location='{{ url_for('prets.detail_pret', pret_id=pret.id) }}'" style="cursor:pointer">
                         <td>{{ pret.nom }} {{ pret.prenom }}</td>
                         <td>{{ pret.descriptif_objets }}</td>
                         <td>{{ pret.date_retour | format_date }}</td>

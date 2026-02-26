@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-geo-alt-fill text-primary"></i> Gestion des lieux
     </h1>
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-dark">
         <i class="bi bi-arrow-left"></i> Retour à l'administration
     </a>
 </div>
@@ -19,7 +19,7 @@
                 <h5 class="mb-0"><i class="bi bi-plus-circle text-success"></i> Ajouter un lieu</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('gestion_lieux') }}">
+                <form method="POST" action="{{ url_for('inventaire.gestion_lieux') }}">
                     <input type="hidden" name="action" value="ajouter">
                     <div class="mb-3">
                         <input type="text" name="nom" class="form-control form-control-lg"
@@ -72,7 +72,7 @@
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <!-- Supprimer -->
-                                        <form method="POST" action="{{ url_for('gestion_lieux') }}"
+                                        <form method="POST" action="{{ url_for('inventaire.gestion_lieux') }}"
                                               onsubmit="return confirm('Supprimer le lieu « {{ lieu.nom }} » ?')">
                                             <input type="hidden" name="action" value="supprimer">
                                             <input type="hidden" name="lieu_id" value="{{ lieu.id }}">
@@ -88,7 +88,7 @@
                             <div class="modal fade" id="modalModifier{{ lieu.id }}" tabindex="-1">
                                 <div class="modal-dialog">
                                     <div class="modal-content">
-                                        <form method="POST" action="{{ url_for('gestion_lieux') }}">
+                                        <form method="POST" action="{{ url_for('inventaire.gestion_lieux') }}">
                                             <input type="hidden" name="action" value="modifier">
                                             <input type="hidden" name="lieu_id" value="{{ lieu.id }}">
                                             <div class="modal-header">

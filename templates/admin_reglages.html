@@ -6,7 +6,7 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-sliders2 text-dark"></i> Réglages
     </h1>
-    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-dark">
         <i class="bi bi-arrow-left"></i> Retour à l'administration
     </a>
 </div>
@@ -43,7 +43,7 @@
                         <i class="bi bi-brush text-primary"></i>
                         Couleurs & Mode
                     </h5>
-                    <form method="POST" action="{{ url_for('admin_reglages') }}" class="d-inline"
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}" class="d-inline"
                           onsubmit="return confirm('Réinitialiser le thème aux couleurs par défaut (mode clair) ?')">
                         <input type="hidden" name="action" value="theme_reset">
                         <button type="submit" class="btn btn-outline-secondary btn-sm">
@@ -52,7 +52,7 @@
                     </form>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="theme">
 
                         <!-- Mode sombre -->
@@ -123,7 +123,7 @@
                     <p class="text-muted">
                         Apparaît sur les fiches de prêt imprimables et les étiquettes (texte libre).
                     </p>
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="nom_etablissement">
                         <div class="mb-3">
                             <input type="text"
@@ -159,7 +159,7 @@
                     </h5>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="mode_scanner">
                         <div class="mb-3">
                             <div class="form-check mb-2">
@@ -203,7 +203,7 @@
                         Certaines douchettes ajoutent des caractères avant ou après le code-barres.
                         Configurez ici le préfixe et/ou suffixe à supprimer automatiquement lors du scan.
                     </p>
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="scanner_prefixe_suffixe">
                         <div class="row g-2 mb-3">
                             <div class="col-6">
@@ -285,7 +285,7 @@
                         Après cette durée, un prêt sans durée personnalisée apparaîtra dans les alertes.
                         Cette valeur est aussi utilisée comme « défaut » dans les exports CSV.
                     </p>
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="duree_alerte">
                         <div class="row align-items-center g-2 mb-3">
                             <div class="col-auto">
@@ -319,7 +319,7 @@
                         Lors d'un prêt « fin de journée », le matériel doit être rendu avant cette heure.
                         Au-delà, le prêt apparaîtra comme en dépassement.
                     </p>
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="heure_fin_journee">
                         <div class="row align-items-center g-2 mb-3">
                             <div class="col-auto">
@@ -347,7 +347,7 @@
     <h4 class="mb-3"><i class="bi bi-printer-fill text-info"></i> Impression d'étiquettes</h4>
     <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
-            <form method="POST" action="{{ url_for('admin_reglages') }}" id="formImpression">
+            <form method="POST" action="{{ url_for('admin.admin_reglages') }}" id="formImpression">
                 <input type="hidden" name="action" value="impression">
                 <div class="row g-4">
                     <div class="col-12 col-lg-7">
@@ -526,7 +526,7 @@
                     </h5>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST" action="{{ url_for('admin_reglages') }}">
+                    <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
                         <input type="hidden" name="action" value="changer_mdp">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Ancien mot de passe</label>
@@ -555,6 +555,78 @@
      ════════════════════════════════════════════════════════ -->
 <div id="section-sauvegarde">
     <h4 class="mb-3"><i class="bi bi-hdd-fill text-success"></i> Sauvegarde & Restauration</h4>
+
+    <!-- ── Sauvegarde automatique ── -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0"><i class="bi bi-arrow-repeat text-primary"></i> Sauvegarde automatique</h5>
+        </div>
+        <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('admin.admin_reglages') }}">
+                <input type="hidden" name="action" value="backup_auto">
+
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="backup_auto_active" name="backup_auto_active"
+                           value="1" {{ 'checked' if backup_auto_active == '1' }}>
+                    <label class="form-check-label fw-bold" for="backup_auto_active">
+                        Activer la sauvegarde automatique
+                    </label>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Fréquence</label>
+                        <select name="backup_auto_frequence" class="form-select">
+                            <option value="quotidien" {{ 'selected' if backup_auto_frequence == 'quotidien' }}>Quotidienne</option>
+                            <option value="hebdomadaire" {{ 'selected' if backup_auto_frequence == 'hebdomadaire' }}>Hebdomadaire</option>
+                            <option value="mensuel" {{ 'selected' if backup_auto_frequence == 'mensuel' }}>Mensuelle</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Nombre max. de sauvegardes</label>
+                        <input type="number" name="backup_auto_nombre_max" class="form-control"
+                               value="{{ backup_auto_nombre_max }}" min="1" max="100">
+                        <div class="form-text">Les plus anciennes sont supprimées automatiquement.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Dernière sauvegarde</label>
+                        <input type="text" class="form-control" value="{{ backup_auto_derniere or 'Aucune' }}" disabled>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Chemin de destination <span class="text-muted fw-normal">(optionnel)</span></label>
+                    <input type="text" name="backup_auto_chemin" class="form-control"
+                           value="{{ backup_auto_chemin }}"
+                           placeholder="Laisser vide = dossier data/sauvegardes/ par défaut">
+                    <div class="form-text">
+                        Exemples : <code>D:\Sauvegardes\PretGo</code>, <code>\\serveur\partage\backups</code>
+                    </div>
+                </div>
+
+                {% if backup_auto_erreur %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Erreur dernière sauvegarde :</strong> {{ backup_auto_erreur }}
+                </div>
+                {% endif %}
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Enregistrer les paramètres de sauvegarde
+                </button>
+            </form>
+
+            <hr class="my-3">
+            <form method="POST" action="{{ url_for('admin.admin_reglages') }}" class="d-inline">
+                <input type="hidden" name="action" value="backup_auto_maintenant">
+                <button type="submit" class="btn btn-outline-success">
+                    <i class="bi bi-play-fill"></i> Lancer une sauvegarde automatique maintenant
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Sauvegarde manuelle + restauration ── -->
     <div class="row g-4">
         <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm h-100">
@@ -566,7 +638,7 @@
                         Télécharger un fichier <code>.pretgo</code> contenant la base de données,
                         les images et les documents. Permet de transférer PretGo sur un autre PC.
                     </p>
-                    <a href="{{ url_for('admin_sauvegarder') }}" class="btn btn-success btn-lg">
+                    <a href="{{ url_for('admin.admin_sauvegarder') }}" class="btn btn-success btn-lg">
                         <i class="bi bi-download"></i> Télécharger la sauvegarde
                     </a>
                 </div>
@@ -582,7 +654,7 @@
                         Charger un fichier <code>.pretgo</code> pour restaurer une sauvegarde.
                         <strong class="text-danger">Les données actuelles seront remplacées.</strong>
                     </p>
-                    <form method="POST" action="{{ url_for('admin_restaurer') }}" enctype="multipart/form-data"
+                    <form method="POST" action="{{ url_for('admin.admin_restaurer') }}" enctype="multipart/form-data"
                           onsubmit="return confirm('Attention : cette action va remplacer toutes les données actuelles. Continuer ?')">
                         <div class="input-group">
                             <input type="file" name="fichier_pretgo" class="form-control" accept=".pretgo" required>
@@ -611,7 +683,7 @@
                 Toutes les données seront définitivement supprimées :
                 personnes, prêts, historique, catégories et paramètres.
             </div>
-            <form method="POST" action="{{ url_for('admin_reset_db') }}" id="form-reset-db">
+            <form method="POST" action="{{ url_for('admin.admin_reset_db') }}" id="form-reset-db">
                 <div class="mb-3">
                     <label class="form-label fw-bold">
                         Pour confirmer, tapez <code>REINITIALISER</code> en majuscules :

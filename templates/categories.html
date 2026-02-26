@@ -14,7 +14,7 @@
                 <h5 class="mb-0"><i class="bi bi-plus-circle text-primary"></i> Ajouter une catégorie</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('categories') }}">
+                <form method="POST" action="{{ url_for('inventaire.categories') }}">
                     <div class="mb-3">
                         <label for="nom" class="form-label fw-bold">Nom de la catégorie</label>
                         <input type="text"
@@ -62,7 +62,7 @@
                         <div class="d-flex align-items-center gap-2 flex-grow-1">
                             <i class="bi bi-tag-fill text-primary"></i>
                             <span class="fs-5">{{ cat.nom }}</span>
-                            <form method="POST" action="{{ url_for('modifier_prefixe_categorie', cat_id=cat.id) }}"
+                            <form method="POST" action="{{ url_for('inventaire.modifier_prefixe_categorie', cat_id=cat.id) }}"
                                   class="d-flex align-items-center gap-1 ms-auto me-2">
                                 <input type="text" name="prefixe_inventaire"
                                        value="{{ cat.prefixe_inventaire or '' }}"
@@ -84,7 +84,7 @@
                     <div class="modal fade" id="deleteModal{{ cat.id }}" tabindex="-1">
                         <div class="modal-dialog">
                             <div class="modal-content">
-                                <form method="POST" action="{{ url_for('supprimer_categorie', cat_id=cat.id) }}">
+                                <form method="POST" action="{{ url_for('inventaire.supprimer_categorie', cat_id=cat.id) }}">
                                     <div class="modal-header bg-danger bg-opacity-10">
                                         <h5 class="modal-title text-danger">
                                             <i class="bi bi-trash"></i> Supprimer « {{ cat.nom }} »

@@ -24,7 +24,7 @@
                     Un fichier CSV pré-organisé par catégorie (élèves, enseignants, agents…).
                     Ouvrez-le avec <strong>Excel</strong> ou <strong>LibreOffice</strong>.
                 </p>
-                <a href="{{ url_for('telecharger_gabarit') }}"
+                <a href="{{ url_for('personnes.telecharger_gabarit') }}"
                    class="btn btn-success btn-lg w-100"
                    download>
                     <i class="bi bi-file-earmark-spreadsheet"></i> Télécharger le gabarit
@@ -104,7 +104,7 @@
                 <h5 class="mb-0"><i class="bi bi-upload text-primary"></i> Envoyer votre fichier</h5>
             </div>
             <div class="card-body p-4">
-                <form method="POST" action="{{ url_for('importer_personnes') }}" enctype="multipart/form-data">
+                <form method="POST" action="{{ url_for('personnes.importer_personnes') }}" enctype="multipart/form-data">
 
                     <!-- Choix du mode -->
                     <div class="mb-4">
@@ -181,7 +181,7 @@
                         <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="btnImport" disabled>
                             <i class="bi bi-upload"></i> Importer le fichier
                         </button>
-                        <a href="{{ url_for('personnes') }}" class="btn btn-outline-secondary btn-lg">
+                        <a href="{{ url_for('personnes.personnes') }}" class="btn btn-outline-secondary btn-lg">
                             <i class="bi bi-x-lg"></i> Annuler
                         </a>
                     </div>
@@ -229,7 +229,7 @@
                             <div class="accordion-body px-0 small">
                                 Deux solutions :<br>
                                 <strong>1.</strong> Ajoutez-les directement depuis la page
-                                <a href="{{ url_for('ajouter_personne') }}">Ajouter une personne</a>.<br>
+                                <a href="{{ url_for('personnes.ajouter_personne') }}">Ajouter une personne</a>.<br>
                                 <strong>2.</strong> Ajoutez-les dans votre fichier CSV et réimportez-le
                                 en mode « Ajouter » — seules les nouvelles personnes seront créées.
                             </div>

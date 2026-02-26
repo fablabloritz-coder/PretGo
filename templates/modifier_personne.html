@@ -8,7 +8,7 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-        <form method="POST" action="{{ url_for('modifier_personne', personne_id=personne.id) }}">
+        <form method="POST" action="{{ url_for('personnes.modifier_personne', personne_id=personne.id) }}">
 
             <div class="row g-4">
                 <div class="col-12 col-md-6">
@@ -113,7 +113,7 @@
                 <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
                     <i class="bi bi-check-lg"></i> Enregistrer les modifications
                 </button>
-                <a href="{{ url_for('personnes') }}" class="btn btn-outline-secondary btn-lg">
+                <a href="{{ url_for('personnes.personnes') }}" class="btn btn-outline-secondary btn-lg">
                     <i class="bi bi-x-lg"></i> Annuler
                 </a>
             </div>

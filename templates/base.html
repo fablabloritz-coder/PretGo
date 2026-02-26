@@ -330,7 +330,7 @@
     <!-- Barre de navigation principale -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('index') }}">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('core.index') }}">
                 {% if theme.logo %}
                 <img src="{{ url_for('static', filename=theme.logo) }}" alt="{{ theme.nom_application }}" height="32" class="d-inline-block" style="border-radius:4px;">
                 {% else %}
@@ -344,22 +344,22 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto gap-1">
                     <li class="nav-item">
-                        <a class="nav-link btn-nav" href="{{ url_for('index') }}">
+                        <a class="nav-link btn-nav" href="{{ url_for('core.index') }}">
                             <i class="bi bi-house-fill"></i> Accueil
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link btn-nav btn-nav-highlight-new" href="{{ url_for('nouveau_pret') }}">
+                        <a class="nav-link btn-nav btn-nav-highlight-new" href="{{ url_for('prets.nouveau_pret') }}">
                             <i class="bi bi-plus-circle-fill"></i> Nouveau Prêt
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link btn-nav btn-nav-highlight-return" href="{{ url_for('retour') }}">
+                        <a class="nav-link btn-nav btn-nav-highlight-return" href="{{ url_for('prets.retour') }}">
                             <i class="bi bi-arrow-return-left"></i> Retour
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link btn-nav btn-nav-highlight-alert" href="{{ url_for('alertes') }}">
+                        <a class="nav-link btn-nav btn-nav-highlight-alert" href="{{ url_for('core.alertes') }}">
                             <i class="bi bi-exclamation-triangle-fill"></i> Alertes
                             {% if nb_alertes > 0 %}
                             <span class="badge-alerte-nav">{{ nb_alertes }}</span>
@@ -367,7 +367,7 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link btn-nav" href="{{ url_for('recherche') }}">
+                        <a class="nav-link btn-nav" href="{{ url_for('core.recherche') }}">
                             <i class="bi bi-search"></i> Recherche
                         </a>
                     </li>
@@ -391,12 +391,12 @@
                         </a>
                         {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link btn-nav" href="{{ url_for('historique') }}">
+                        <a class="nav-link btn-nav" href="{{ url_for('core.historique') }}">
                             <i class="bi bi-clock-history"></i> Historique
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link btn-nav" href="{{ url_for('etiquettes') }}">
+                        <a class="nav-link btn-nav" href="{{ url_for('inventaire.etiquettes') }}">
                             <i class="bi bi-printer"></i> Étiquettes
                         </a>
                     </li>
@@ -407,37 +407,37 @@
                             <i class="bi bi-shield-lock-fill"></i> Admin
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.admin_dashboard') }}">
                                 <i class="bi bi-speedometer2"></i> Tableau de bord</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('statistiques') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.statistiques') }}">
                                 <i class="bi bi-graph-up"></i> Statistiques</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('personnes') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('personnes.personnes') }}">
                                 <i class="bi bi-people-fill"></i> Personnes</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('inventaire') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('inventaire.inventaire') }}">
                                 <i class="bi bi-pc-display"></i> Matériel</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('categories') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('inventaire.categories') }}">
                                 <i class="bi bi-tags"></i> Catégories matériel</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('categories_personnes_admin') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('personnes.categories_personnes_admin') }}">
                                 <i class="bi bi-person-lines-fill"></i> Catégories personnes</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('gestion_lieux') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('inventaire.gestion_lieux') }}">
                                 <i class="bi bi-geo-alt"></i> Lieux de prêt</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('champs_personnalises') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.champs_personnalises') }}">
                                 <i class="bi bi-input-cursor-text"></i> Champs & Fiches</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin_reglages') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.admin_reglages') }}">
                                 <i class="bi bi-gear"></i> Réglages</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin_rentree') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.admin_rentree') }}">
                                 <i class="bi bi-calendar2-event"></i> Rentrée scolaire</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="{{ url_for('admin_logout') }}">
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('admin.admin_logout') }}">
                                 <i class="bi bi-box-arrow-right"></i> Déconnexion</a></li>
                         </ul>
                     </li>
                     {% else %}
                     <li class="nav-item">
-                        <a class="nav-link btn-nav btn-nav-admin" href="{{ url_for('admin_login') }}">
+                        <a class="nav-link btn-nav btn-nav-admin" href="{{ url_for('admin.admin_login') }}">
                             <i class="bi bi-shield-lock-fill"></i> Admin
                         </a>
                     </li>
@@ -644,7 +644,7 @@
                     html5QrCode.stop().then(() => {
                         hint.textContent = 'Recherche en cours...';
                         result.style.display = 'none';
-                        fetch('{{ url_for("api_scan") }}?code=' + encodeURIComponent(decoded))
+                        fetch('{{ url_for("api.api_scan") }}?code=' + encodeURIComponent(decoded))
                             .then(r => r.json())
                             .then(data => {
                                 if (data.found) {
@@ -684,7 +684,7 @@
                     html5QrCode.stop().then(() => {
                         hint.textContent = 'Recherche en cours...';
                         result.style.display = 'none';
-                        fetch('{{ url_for("api_scan") }}?code=' + encodeURIComponent(decoded))
+                        fetch('{{ url_for("api.api_scan") }}?code=' + encodeURIComponent(decoded))
                             .then(r => r.json())
                             .then(data => {
                                 if (data.found) {
@@ -756,7 +756,7 @@
             body.innerHTML = '<i class="bi bi-upc-scan"></i> Recherche de « ' + code + ' »...';
             toast.style.display = 'block';
 
-            fetch('{{ url_for("api_scan") }}?code=' + encodeURIComponent(code))
+            fetch('{{ url_for("api.api_scan") }}?code=' + encodeURIComponent(code))
                 .then(r => r.json())
                 .then(data => {
                     if (data.found) {

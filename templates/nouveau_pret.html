@@ -8,7 +8,7 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-        <form method="POST" action="{{ url_for('nouveau_pret') }}" id="formNouveauPret">
+        <form method="POST" action="{{ url_for('prets.nouveau_pret') }}" id="formNouveauPret">
             <input type="hidden" id="personne_id" name="personne_id" value="">
 
             <!-- Étape 1 : Sélection de la personne -->
@@ -215,7 +215,7 @@
                 <button type="button" id="btn-valider-pret" class="btn btn-primary btn-lg flex-grow-1">
                     <i class="bi bi-check-lg"></i> Enregistrer le prêt
                 </button>
-                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-lg">
+                <a href="{{ url_for('core.index') }}" class="btn btn-outline-secondary btn-lg">
                     <i class="bi bi-x-lg"></i> Annuler
                 </a>
             </div>
@@ -417,7 +417,7 @@ function toggleDuree() {
     });
 
     function searchInventaire(row, query) {
-        fetch('{{ url_for("api_inventaire") }}?q=' + encodeURIComponent(query))
+        fetch('{{ url_for("api.api_inventaire") }}?q=' + encodeURIComponent(query))
             .then(r => r.json())
             .then(items => {
                 const box = row.querySelector('.item-suggestions');
