@@ -78,14 +78,14 @@
     <div class="card-body p-0">
         {% if prets_actifs %}
         <div class="table-responsive">
-            <table class="table table-touch table-hover mb-0">
+            <table class="table table-touch table-hover mb-0 table-sortable">
                 <thead>
                     <tr>
-                        <th>Emprunteur</th>
-                        <th>Catégorie</th>
-                        <th>Classe</th>
+                        <th data-sort="text">Emprunteur</th>
+                        <th data-sort="text">Catégorie</th>
+                        <th data-sort="text">Classe</th>
                         <th>Objet(s) emprunté(s)</th>
-                        <th>Date d'emprunt</th>
+                        <th data-sort="date">Date d'emprunt</th>
                         <th>Retour prévu</th>
                         <th>Durée</th>
                     </tr>
@@ -119,6 +119,35 @@
                 </tbody>
             </table>
         </div>
+        <!-- Pagination prêts actifs -->
+        {% if total_pages > 1 %}
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+            <small class="text-muted">Page {{ page }}/{{ total_pages }}</small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('core.index', page=page-1) }}">&laquo;</a>
+                    </li>
+                    {% endif %}
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                        {% elif p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                        <li class="page-item"><a class="page-link" href="{{ url_for('core.index', page=p) }}">{{ p }}</a></li>
+                        {% elif p == 4 or p == total_pages - 2 %}
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('core.index', page=page+1) }}">&raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
         {% else %}
         <div class="empty-state">
             <i class="bi bi-check-circle"></i>

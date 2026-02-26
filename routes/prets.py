@@ -6,6 +6,44 @@ from datetime import datetime, timedelta
 
 bp = Blueprint('prets', __name__)
 
+
+def _parse_duree(form):
+    """Parse les champs de durée depuis le formulaire.
+    Retourne (duree_pret_jours, duree_pret_heures, date_retour_prevue, duree_type)."""
+    duree_type = form.get('duree_type', 'defaut')
+    duree_pret_jours = None
+    duree_pret_heures = None
+    date_retour_prevue = None
+
+    if duree_type == 'heures':
+        h = form.get('duree_heures', '').strip()
+        if h:
+            try:
+                duree_pret_heures = float(h)
+            except ValueError:
+                pass
+    elif duree_type == 'jours':
+        j = form.get('duree_jours', '').strip()
+        if j:
+            try:
+                duree_pret_jours = int(j)
+            except ValueError:
+                pass
+    elif duree_type == 'date_precise':
+        date_retour_prevue = form.get('date_retour_prevue', '').strip() or None
+    elif duree_type == 'fin_journee':
+        heure_fin = get_setting('heure_fin_journee', '17:45')
+        h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
+        now = datetime.now()
+        fin_journee = now.replace(hour=h_fin, minute=m_fin, second=0, microsecond=0)
+        if fin_journee > now:
+            delta = (fin_journee - now).total_seconds() / 3600
+            duree_pret_heures = round(delta, 2)
+        else:
+            duree_pret_heures = 0.5
+
+    return duree_pret_jours, duree_pret_heures, date_retour_prevue, duree_type
+
 @bp.route('/nouveau-pret', methods=['GET', 'POST'])
 def nouveau_pret():
     conn = get_app_db()
@@ -28,37 +66,7 @@ def nouveau_pret():
                 items.append((desc, int(mat_id) if mat_id else None))
 
         # ── Gestion de la durée (heures ou jours) ──
-        duree_type = request.form.get('duree_type', 'defaut')
-        duree_pret_jours = None
-        duree_pret_heures = None
-        date_retour_prevue = None
-
-        if duree_type == 'heures':
-            h = request.form.get('duree_heures', '').strip()
-            if h:
-                try:
-                    duree_pret_heures = float(h)
-                except ValueError:
-                    pass
-        elif duree_type == 'jours':
-            j = request.form.get('duree_jours', '').strip()
-            if j:
-                try:
-                    duree_pret_jours = int(j)
-                except ValueError:
-                    pass
-        elif duree_type == 'date_precise':
-            date_retour_prevue = request.form.get('date_retour_prevue', '').strip() or None
-        elif duree_type == 'fin_journee':
-            heure_fin = get_setting('heure_fin_journee', '17:45')
-            h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
-            now = datetime.now()
-            fin_journee = now.replace(hour=h_fin, minute=m_fin, second=0, microsecond=0)
-            if fin_journee > now:
-                delta = (fin_journee - now).total_seconds() / 3600
-                duree_pret_heures = round(delta, 2)
-            else:
-                duree_pret_heures = 0.5
+        duree_pret_jours, duree_pret_heures, date_retour_prevue, duree_type = _parse_duree(request.form)
 
         if not personne_id or not items:
             flash('Veuillez sélectionner une personne et ajouter au moins un objet.', 'danger')
@@ -280,37 +288,7 @@ def modifier_pret(pret_id):
                 items.append((desc, int(mat_id) if mat_id else None))
 
         # ── Gestion de la durée ──
-        duree_type = request.form.get('duree_type', 'defaut')
-        duree_pret_jours = None
-        duree_pret_heures = None
-        date_retour_prevue = None
-
-        if duree_type == 'heures':
-            h = request.form.get('duree_heures', '').strip()
-            if h:
-                try:
-                    duree_pret_heures = float(h)
-                except ValueError:
-                    pass
-        elif duree_type == 'jours':
-            j = request.form.get('duree_jours', '').strip()
-            if j:
-                try:
-                    duree_pret_jours = int(j)
-                except ValueError:
-                    pass
-        elif duree_type == 'date_precise':
-            date_retour_prevue = request.form.get('date_retour_prevue', '').strip() or None
-        elif duree_type == 'fin_journee':
-            heure_fin = get_setting('heure_fin_journee', '17:45')
-            h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
-            now = datetime.now()
-            fin_journee = now.replace(hour=h_fin, minute=m_fin, second=0, microsecond=0)
-            if fin_journee > now:
-                delta = (fin_journee - now).total_seconds() / 3600
-                duree_pret_heures = round(delta, 2)
-            else:
-                duree_pret_heures = 0.5
+        duree_pret_jours, duree_pret_heures, date_retour_prevue, duree_type = _parse_duree(request.form)
 
         if not personne_id or not items:
             flash('Veuillez sélectionner une personne et ajouter au moins un objet.', 'danger')

@@ -5,11 +5,14 @@ from utils import get_app_db, admin_required, calculer_annee_scolaire, liberer_m
 from datetime import datetime, timedelta
 import csv
 import io
+import logging
 import os
 import random
 import re
 import unicodedata
 import zipfile
+
+_audit = logging.getLogger('pretgo.audit')
 
 bp = Blueprint('admin', __name__)
 
@@ -34,7 +37,10 @@ def admin_login():
                 # Migration automatique : rehacher avec l'algorithme sécurisé
                 if not stored_hash.startswith(('scrypt:', 'pbkdf2:')):
                     set_setting('admin_password', hash_password(password))
+                # Régénérer la session pour éviter le session fixation
+                session.clear()
                 session['admin_logged_in'] = True
+                _audit.info('LOGIN admin depuis %s', request.remote_addr)
 
                 # Première connexion ? Forcer le changement de mot de passe
                 if get_setting('password_changed', '0') == '0':
@@ -84,6 +90,7 @@ def admin_reset_password():
             new_code = generate_recovery_code()
             set_setting('recovery_code_hash', hash_password(new_code))
             session.pop('recovery_validated', None)
+            _audit.info('PASSWORD_RESET via recovery depuis %s', request.remote_addr)
             flash('Mot de passe réinitialisé. Un nouveau code de récupération a été généré dans le dossier data/.', 'success')
             return redirect(url_for('admin.admin_login'))
 
@@ -114,6 +121,7 @@ def admin_setup_password():
             # Générer le code de récupération unique pour cette installation
             new_code = generate_recovery_code()
             set_setting('recovery_code_hash', hash_password(new_code))
+            _audit.info('PASSWORD_CHANGED (setup) depuis %s', request.remote_addr)
             flash('Mot de passe personnalisé avec succès ! Votre code de récupération unique a été généré dans le dossier data/.', 'success')
             return redirect(url_for('admin.admin_dashboard'))
 
@@ -124,6 +132,7 @@ def admin_setup_password():
 @bp.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged_in', None)
+    _audit.info('LOGOUT admin depuis %s', request.remote_addr)
     flash('Déconnexion administrateur.', 'info')
     return redirect(url_for('core.index'))
 
@@ -329,6 +338,13 @@ def admin_reglages():
         elif action == 'theme':
             couleur_primaire = request.form.get('theme_couleur_primaire', '#1a73e8').strip()
             couleur_navbar = request.form.get('theme_couleur_navbar', '#1a56db').strip()
+            # Valider le format des couleurs (prévenir injection CSS)
+            import re as _re
+            _color_re = _re.compile(r'^#[0-9a-fA-F]{6}$')
+            if not _color_re.match(couleur_primaire):
+                couleur_primaire = '#1a73e8'
+            if not _color_re.match(couleur_navbar):
+                couleur_navbar = '#1a56db'
             mode_sombre = '1' if request.form.get('theme_mode_sombre') else '0'
             set_setting('theme_couleur_primaire', couleur_primaire)
             set_setting('theme_couleur_navbar', couleur_navbar)
@@ -408,6 +424,7 @@ def admin_reset_db():
     confirmation = request.form.get('confirmation', '')
     if confirmation == 'REINITIALISER':
         reset_db()
+        _audit.info('RESET_DB depuis %s', request.remote_addr)
         session.pop('admin_logged_in', None)
         flash('Base de données réinitialisée avec succès. Toutes les données ont été supprimées.', 'success')
         return redirect(url_for('core.index'))
@@ -829,6 +846,7 @@ def admin_generer_demo():
     nb_pers = len([p for p in personnes_ids if p is not None])
     nb_mat = len([m for m in materiels_ids if m is not None])
     nb_lieux = conn.execute('SELECT COUNT(*) FROM lieux WHERE actif = 1').fetchone()[0]
+    _audit.info('DEMO_GENERATED depuis %s', request.remote_addr)
     flash(f'Base de démonstration générée : {nb_pers} personnes, {nb_mat} matériels, '
           f'{nb_lieux} lieux et des prêts de test.', 'success')
     return redirect(url_for('admin.admin_dashboard'))
@@ -839,31 +857,11 @@ def admin_generer_demo():
 @admin_required
 def admin_sauvegarder():
     """Exporter toute la base + uploads dans un fichier .pretgo (zip)."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'PretGo_sauvegarde_{timestamp}.pretgo'
-    zip_path = os.path.join(BACKUP_DIR, filename)
-
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Base de données SQLite
-        if os.path.exists(DATABASE_PATH):
-            zf.write(DATABASE_PATH, 'gestion_prets.db')
-        # Images matériel
-        if os.path.exists(UPLOAD_FOLDER):
-            for f in os.listdir(UPLOAD_FOLDER):
-                fpath = os.path.join(UPLOAD_FOLDER, f)
-                if os.path.isfile(fpath):
-                    zf.write(fpath, f'uploads/materiel/{f}')
-        # Documents (fiches de prêt)
-        if os.path.exists(DOCUMENTS_DIR):
-            for f in os.listdir(DOCUMENTS_DIR):
-                fpath = os.path.join(DOCUMENTS_DIR, f)
-                if os.path.isfile(fpath):
-                    zf.write(fpath, f'documents/{f}')
-        # Code de récupération
-        if os.path.exists(RECOVERY_CODE_PATH):
-            zf.write(RECOVERY_CODE_PATH, 'code_recuperation.txt')
-
-    # Envoyer en téléchargement
+    success, message, zip_path = effectuer_backup()
+    if not success or not zip_path:
+        flash(f'Erreur lors de la sauvegarde : {message}', 'danger')
+        return redirect(url_for('admin.admin_reglages'))
+    filename = os.path.basename(zip_path)
     return send_file(zip_path, as_attachment=True, download_name=filename,
                      mimetype='application/zip')
 
@@ -916,6 +914,7 @@ def admin_restaurer():
         os.remove(temp_path)
         # Réinitialiser les migrations (s'assurer que les nouvelles colonnes existent)
         init_db()
+        _audit.info('RESTORE_DB depuis %s', request.remote_addr)
         session.pop('admin_logged_in', None)
         flash('Base restaurée avec succès ! Veuillez vous reconnecter.', 'success')
         return redirect(url_for('admin.admin_login'))

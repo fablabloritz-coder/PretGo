@@ -60,6 +60,7 @@ class _RateLimiter:
     """Limiteur de requêtes en mémoire, par IP."""
     def __init__(self):
         self._hits = _defaultdict(list)   # ip -> [timestamps]
+        self._last_cleanup = _time.time()
 
     def is_limited(self, ip, max_hits=5, window=60):
         """True si l'IP a dépassé max_hits dans les <window> dernières secondes."""
@@ -70,6 +71,12 @@ class _RateLimiter:
         if len(self._hits[ip]) >= max_hits:
             return True
         self._hits[ip].append(now)
+        # Nettoyage global toutes les 10 minutes : supprimer les IPs inactives
+        if now - self._last_cleanup > 600:
+            self._last_cleanup = now
+            stale = [k for k, v in self._hits.items() if not v or now - v[-1] > window]
+            for k in stale:
+                del self._hits[k]
         return False
 
 rate_limiter = _RateLimiter()
@@ -249,12 +256,15 @@ def query_inventaire(filtre_type='tous', recherche='', etat_only=None, page=None
         'SELECT DISTINCT type_materiel FROM inventaire WHERE actif = 1 ORDER BY type_materiel'
     ).fetchall()
 
-    comptages = {'total': conn.execute('SELECT COUNT(*) FROM inventaire WHERE actif = 1').fetchone()[0]}
-    for t in types:
-        comptages[t['type_materiel']] = conn.execute(
-            'SELECT COUNT(*) FROM inventaire WHERE actif = 1 AND type_materiel = ?',
-            (t['type_materiel'],)
-        ).fetchone()[0]
+    comptages = {}
+    rows = conn.execute(
+        'SELECT type_materiel, COUNT(*) as cnt FROM inventaire WHERE actif = 1 GROUP BY type_materiel ORDER BY type_materiel'
+    ).fetchall()
+    total_count = 0
+    for r in rows:
+        comptages[r['type_materiel']] = r['cnt']
+        total_count += r['cnt']
+    comptages['total'] = total_count
 
     if page is not None:
         return items, types, comptages, total, total_pages, page
@@ -419,12 +429,14 @@ def register_filters(app):
             if drp:
                 try:
                     dt_retour = datetime.strptime(drp, '%Y-%m-%d')
-                    heure_fin = get_setting('heure_fin_journee', '17:45')
+                    cache = getattr(g, '_settings_cache', {})
+                    heure_fin = cache.get('heure_fin_journee') or get_setting('heure_fin_journee', '17:45')
                     return f"Le {dt_retour.strftime('%d/%m/%Y')} (à {heure_fin.replace(':', 'h')})"
                 except Exception:
                     pass
         if type_duree == 'fin_journee':
-            heure_fin = get_setting('heure_fin_journee', '17:45')
+            cache = getattr(g, '_settings_cache', {})
+            heure_fin = cache.get('heure_fin_journee') or get_setting('heure_fin_journee', '17:45')
             return f'Fin de journée ({heure_fin.replace(":", "h")})'
         heures = pret['duree_pret_heures'] if pret['duree_pret_heures'] else None
         jours = pret['duree_pret_jours'] if pret['duree_pret_jours'] else None
@@ -452,6 +464,7 @@ def register_filters(app):
         type_duree = pret['type_duree'] if pret['type_duree'] else None
         if type_duree in ('aucune',):
             return '—'
+        cache = getattr(g, '_settings_cache', {})
         if type_duree == 'date_precise':
             try:
                 drp = pret['date_retour_prevue']
@@ -460,7 +473,7 @@ def register_filters(app):
             if drp:
                 try:
                     dt_retour = datetime.strptime(drp, '%Y-%m-%d')
-                    heure_fin = get_setting('heure_fin_journee', '17:45')
+                    heure_fin = cache.get('heure_fin_journee') or get_setting('heure_fin_journee', '17:45')
                     return dt_retour.strftime('%d/%m/%Y') + f" à {heure_fin}"
                 except Exception:
                     return ''
@@ -473,8 +486,10 @@ def register_filters(app):
             elif jours is not None:
                 retour = dt + timedelta(days=jours)
             else:
-                duree_defaut = float(get_setting('duree_alerte_defaut', '7'))
-                unite = get_setting('duree_alerte_unite', 'jours')
+                duree_defaut = cache.get('duree_alerte_defaut')
+                if duree_defaut is None:
+                    duree_defaut = float(get_setting('duree_alerte_defaut', '7'))
+                unite = cache.get('duree_alerte_unite') or get_setting('duree_alerte_unite', 'jours')
                 if unite == 'heures':
                     retour = dt + timedelta(hours=duree_defaut)
                 else:
@@ -494,12 +509,21 @@ def register_context_processors(app):
         conn = None
         try:
             conn = get_app_db()
-            prets_actifs = conn.execute(
-                'SELECT date_emprunt, duree_pret_jours, duree_pret_heures, date_retour_prevue FROM prets WHERE retour_confirme = 0'
-            ).fetchall()
+            # Précharger les settings utilisés partout (1 seule requête chacun)
             duree_def = float(get_setting('duree_alerte_defaut', '7', conn=conn))
             unite_def = get_setting('duree_alerte_unite', 'jours', conn=conn)
             heure_fin = get_setting('heure_fin_journee', '17:45', conn=conn)
+            # Stocker dans g pour les filtres Jinja (évite des appels répétés)
+            g._settings_cache = {
+                'duree_alerte_defaut': duree_def,
+                'duree_alerte_unite': unite_def,
+                'heure_fin_journee': heure_fin,
+            }
+            # Compter les alertes directement en SQL pour les dates précises
+            # et ne charger que les prêts nécessitant un calcul Python
+            prets_actifs = conn.execute(
+                'SELECT date_emprunt, duree_pret_jours, duree_pret_heures, date_retour_prevue, type_duree FROM prets WHERE retour_confirme = 0'
+            ).fetchall()
             for p in prets_actifs:
                 depasse, _ = calcul_depassement_heures(
                     p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],

@@ -9,16 +9,27 @@ bp = Blueprint('core', __name__)
 def index():
     conn = get_app_db()
 
+    page = request.args.get('page', 1, type=int)
+    par_page = 50
+
+    total_actifs = conn.execute(
+        'SELECT COUNT(*) FROM prets WHERE retour_confirme = 0'
+    ).fetchone()[0]
+    total_pages = max(1, (total_actifs + par_page - 1) // par_page)
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * par_page
+
     prets_actifs = conn.execute('''
         SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
         FROM prets p
         JOIN personnes pe ON p.personne_id = pe.id
         WHERE p.retour_confirme = 0
         ORDER BY p.date_emprunt DESC
-    ''').fetchall()
+        LIMIT ? OFFSET ?
+    ''', (par_page, offset)).fetchall()
 
     stats = {
-        'actifs': len(prets_actifs),
+        'actifs': total_actifs,
         'retournes': conn.execute(
             'SELECT COUNT(*) FROM prets WHERE retour_confirme = 1'
         ).fetchone()[0],
@@ -40,7 +51,9 @@ def index():
         'index.html',
         prets_actifs=prets_actifs,
         stats=stats,
-        derniers_retours=derniers_retours
+        derniers_retours=derniers_retours,
+        page=page,
+        total_pages=total_pages
     )
 
 
@@ -50,26 +63,56 @@ def recherche():
     conn = get_app_db()
     q = request.args.get('q', '').strip()
     filtre_statut = request.args.get('statut', 'tous')
-    resultats = []
+    resultats_prets = []
+    resultats_personnes = []
+    resultats_materiel = []
 
     if q:
+        like = f'%{q}%'
+
+        # ── Recherche dans les prêts ──
         query = '''
             SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
             FROM prets p
             JOIN personnes pe ON p.personne_id = pe.id
             WHERE (pe.nom LIKE ? OR pe.prenom LIKE ? OR p.descriptif_objets LIKE ? OR pe.classe LIKE ?)
         '''
-        params = [f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%']
+        params = [like, like, like, like]
 
         if filtre_statut == 'actifs':
             query += ' AND p.retour_confirme = 0'
         elif filtre_statut == 'retournes':
             query += ' AND p.retour_confirme = 1'
 
-        query += ' ORDER BY p.date_emprunt DESC'
-        resultats = conn.execute(query, params).fetchall()
+        query += ' ORDER BY p.date_emprunt DESC LIMIT 100'
+        resultats_prets = conn.execute(query, params).fetchall()
 
-    return render_template('recherche.html', resultats=resultats, q=q, filtre_statut=filtre_statut)
+        # ── Recherche dans les personnes ──
+        resultats_personnes = conn.execute('''
+            SELECT id, nom, prenom, classe, categorie, email, actif
+            FROM personnes
+            WHERE actif = 1
+              AND (nom LIKE ? OR prenom LIKE ? OR classe LIKE ? OR email LIKE ?)
+            ORDER BY nom, prenom
+            LIMIT 50
+        ''', (like, like, like, like)).fetchall()
+
+        # ── Recherche dans le matériel ──
+        resultats_materiel = conn.execute('''
+            SELECT id, type_materiel, marque, modele, numero_serie,
+                   numero_inventaire, etat
+            FROM inventaire
+            WHERE (type_materiel LIKE ? OR marque LIKE ? OR modele LIKE ?
+                   OR numero_serie LIKE ? OR numero_inventaire LIKE ?)
+            ORDER BY type_materiel, marque
+            LIMIT 50
+        ''', (like, like, like, like, like)).fetchall()
+
+    return render_template('recherche.html',
+                           resultats_prets=resultats_prets,
+                           resultats_personnes=resultats_personnes,
+                           resultats_materiel=resultats_materiel,
+                           q=q, filtre_statut=filtre_statut)
 
 
 

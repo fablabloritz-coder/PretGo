@@ -7,7 +7,7 @@ Pour lancer : python app.py
 Puis ouvrir http://localhost:5000
 """
 
-from flask import Flask, request, session, g, abort
+from flask import Flask, request, session, g, abort, render_template
 from database import init_db, DATA_DIR
 from utils import get_app_db, register_filters, register_context_processors, check_and_run_backup
 from routes import register_blueprints
@@ -58,8 +58,7 @@ with app.app_context():
 
 CSRF_EXEMPT_ENDPOINTS = {
     'api.api_personnes', 'api.api_inventaire', 'api.api_scan',
-    'api.api_liste_images', 'api.api_upload_image', 'api.api_supprimer_image',
-    'api.api_statistiques',
+    'api.api_liste_images', 'api.api_statistiques', 'api.api_parcourir_dossiers',
 }
 
 
@@ -86,8 +85,9 @@ def _csrf_protect():
 @app.before_request
 def _auto_backup_check():
     """Déclenche le check de backup automatique (throttlé à 5 min)."""
-    if not app.config.get('TESTING'):
-        check_and_run_backup(app)
+    if app.config.get('TESTING') or request.path.startswith('/static'):
+        return
+    check_and_run_backup(app)
 
 
 @app.context_processor
@@ -101,8 +101,17 @@ def _set_security_headers(response):
     """Ajoute les headers de sécurité à chaque réponse."""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # CSP : autoriser inline styles (thème dynamique) et les CDN utilisés
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'self'"
+    )
     return response
 
 
@@ -121,6 +130,20 @@ def _close_db(exception):
 register_filters(app)
 register_context_processors(app)
 register_blueprints(app)
+
+
+# ============================================================
+#  PAGES D'ERREUR PERSONNALISÉES
+# ============================================================
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    return render_template('500.html'), 500
 
 
 # ============================================================
@@ -168,4 +191,9 @@ if __name__ == '__main__':
     print(f"   http://localhost:{PORT}")
     print("=" * 55)
     print()
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+    # Utiliser waitress (serveur de production) si disponible, sinon Flask dev server
+    try:
+        from waitress import serve
+        serve(app, host='0.0.0.0', port=PORT, threads=4)
+    except ImportError:
+        app.run(host='0.0.0.0', port=PORT, debug=False)

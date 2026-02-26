@@ -596,11 +596,17 @@
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">Chemin de destination <span class="text-muted fw-normal">(optionnel)</span></label>
-                    <input type="text" name="backup_auto_chemin" class="form-control"
-                           value="{{ backup_auto_chemin }}"
-                           placeholder="Laisser vide = dossier data/sauvegardes/ par défaut">
+                    <div class="input-group">
+                        <input type="text" name="backup_auto_chemin" id="backup_auto_chemin" class="form-control"
+                               value="{{ backup_auto_chemin }}"
+                               placeholder="Laisser vide = dossier data/sauvegardes/ par défaut">
+                        <button type="button" class="btn btn-outline-secondary" id="btn_parcourir_dossier"
+                                data-bs-toggle="modal" data-bs-target="#modalExplorateur">
+                            <i class="bi bi-folder2-open"></i> Parcourir
+                        </button>
+                    </div>
                     <div class="form-text">
-                        Exemples : <code>D:\Sauvegardes\PretGo</code>, <code>\\serveur\partage\backups</code>
+                        Vous pouvez également saisir un chemin réseau : <code>\\serveur\partage\backups</code>
                     </div>
                 </div>
 
@@ -816,5 +822,145 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+</script>
+
+<!-- ═══ Modal Explorateur de dossiers ═══ -->
+<div class="modal fade" id="modalExplorateur" tabindex="-1" aria-labelledby="modalExplorateurLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalExplorateurLabel">
+                    <i class="bi bi-folder2-open text-primary"></i> Choisir un dossier de destination
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Barre de chemin courant -->
+                <div class="bg-light border-bottom px-3 py-2 d-flex align-items-center gap-2">
+                    <i class="bi bi-geo-alt text-muted"></i>
+                    <code id="explorateur_chemin_courant" class="flex-grow-1 text-truncate">Chargement…</code>
+                </div>
+                <!-- Zone de chargement -->
+                <div id="explorateur_loading" class="text-center py-4 d-none">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="ms-2 text-muted">Chargement…</span>
+                </div>
+                <!-- Erreur -->
+                <div id="explorateur_erreur" class="alert alert-danger m-3 d-none"></div>
+                <!-- Liste des dossiers -->
+                <div id="explorateur_liste" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;"></div>
+                <!-- Aucun sous-dossier -->
+                <div id="explorateur_vide" class="text-center text-muted py-4 d-none">
+                    <i class="bi bi-folder-x fs-3 d-block mb-2"></i>
+                    Aucun sous-dossier accessible ici.
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="text-muted small" id="explorateur_selection_info">
+                    Dossier sélectionné : <strong id="explorateur_selection_path">—</strong>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="btn_valider_dossier" disabled>
+                        <i class="bi bi-check-lg"></i> Sélectionner ce dossier
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══ Explorateur de dossiers ═══
+(function() {
+    const modal = document.getElementById('modalExplorateur');
+    const liste = document.getElementById('explorateur_liste');
+    const loading = document.getElementById('explorateur_loading');
+    const erreur = document.getElementById('explorateur_erreur');
+    const vide = document.getElementById('explorateur_vide');
+    const cheminCourant = document.getElementById('explorateur_chemin_courant');
+    const selectionPath = document.getElementById('explorateur_selection_path');
+    const btnValider = document.getElementById('btn_valider_dossier');
+    const inputChemin = document.getElementById('backup_auto_chemin');
+    let currentPath = '';
+
+    function chargerDossiers(path) {
+        loading.classList.remove('d-none');
+        erreur.classList.add('d-none');
+        vide.classList.add('d-none');
+        liste.innerHTML = '';
+
+        const url = '/api/parcourir-dossiers' + (path ? '?path=' + encodeURIComponent(path) : '');
+        fetch(url)
+            .then(r => r.json().then(data => ({ok: r.ok, data})))
+            .then(({ok, data}) => {
+                loading.classList.add('d-none');
+                if (!ok) {
+                    erreur.textContent = data.error || 'Erreur inconnue';
+                    erreur.classList.remove('d-none');
+                    return;
+                }
+                currentPath = data.current || '';
+                cheminCourant.textContent = currentPath || 'Poste de travail';
+                selectionPath.textContent = currentPath || '\u2014';
+                btnValider.disabled = !currentPath;
+
+                // Bouton remonter
+                if (!data.is_root) {
+                    const parentBtn = document.createElement('a');
+                    parentBtn.href = '#';
+                    parentBtn.className = 'list-group-item list-group-item-action list-group-item-light d-flex align-items-center gap-2 fw-bold';
+                    parentBtn.innerHTML = '<i class="bi bi-arrow-up-circle text-secondary"></i> <span>.. Dossier parent</span>';
+                    parentBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        chargerDossiers(data.parent);
+                    });
+                    liste.appendChild(parentBtn);
+                }
+
+                // Liste des dossiers
+                if (data.folders.length === 0) {
+                    vide.classList.remove('d-none');
+                } else {
+                    data.folders.forEach(function(f) {
+                        const item = document.createElement('a');
+                        item.href = '#';
+                        item.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2';
+                        if (f.locked) {
+                            item.classList.add('text-muted');
+                            item.innerHTML = '<i class="bi bi-folder-fill text-muted"></i> <span>' +
+                                f.name + '</span> <small class="text-danger ms-auto"><i class="bi bi-lock-fill"></i></small>';
+                            item.addEventListener('click', function(e) { e.preventDefault(); });
+                        } else {
+                            item.innerHTML = '<i class="bi bi-folder-fill text-warning"></i> <span>' + f.name + '</span>';
+                            item.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                chargerDossiers(f.path);
+                            });
+                        }
+                        liste.appendChild(item);
+                    });
+                }
+            })
+            .catch(function(err) {
+                loading.classList.add('d-none');
+                erreur.textContent = 'Erreur de connexion : ' + err.message;
+                erreur.classList.remove('d-none');
+            });
+    }
+
+    // Ouvrir l'explorateur à l'ouverture du modal
+    modal.addEventListener('show.bs.modal', function() {
+        // Démarrer au chemin déjà saisi, ou vide (racine)
+        const cheminInitial = inputChemin.value.trim();
+        chargerDossiers(cheminInitial);
+    });
+
+    // Valider la sélection
+    btnValider.addEventListener('click', function() {
+        inputChemin.value = currentPath;
+        bootstrap.Modal.getInstance(modal).hide();
+    });
+})();
 </script>
 {% endblock %}

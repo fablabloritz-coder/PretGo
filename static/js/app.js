@@ -170,4 +170,57 @@ document.addEventListener('DOMContentLoaded', function () {
             if (bsAlert) bsAlert.close();
         }, 5000);
     });
+
+    // ============================================================
+    //  TRI DES COLONNES DE TABLEAUX (.table-sortable)
+    // ============================================================
+    document.querySelectorAll('table.table-sortable').forEach(function(table) {
+        var headers = table.querySelectorAll('thead th[data-sort]');
+        headers.forEach(function(th, colIndex) {
+            th.style.cursor = 'pointer';
+            th.style.userSelect = 'none';
+            // Ajouter l'icône de tri
+            var icon = document.createElement('i');
+            icon.className = 'bi bi-arrow-down-up ms-1 text-muted';
+            icon.style.fontSize = '0.75em';
+            th.appendChild(icon);
+
+            th.addEventListener('click', function() {
+                var tbody = table.querySelector('tbody');
+                if (!tbody) return;
+                var rows = Array.from(tbody.querySelectorAll('tr'));
+                var sortType = th.getAttribute('data-sort'); // 'text', 'num', 'date'
+                var asc = th.getAttribute('data-sort-dir') !== 'asc';
+                th.setAttribute('data-sort-dir', asc ? 'asc' : 'desc');
+
+                // Reset toutes les icônes
+                headers.forEach(function(h) {
+                    var ic = h.querySelector('i.bi');
+                    if (ic) ic.className = 'bi bi-arrow-down-up ms-1 text-muted';
+                });
+                icon.className = asc ? 'bi bi-arrow-up ms-1' : 'bi bi-arrow-down ms-1';
+
+                var idx = Array.from(th.parentNode.children).indexOf(th);
+                rows.sort(function(a, b) {
+                    var aText = (a.children[idx] ? a.children[idx].textContent.trim() : '');
+                    var bText = (b.children[idx] ? b.children[idx].textContent.trim() : '');
+                    if (sortType === 'num') {
+                        var aNum = parseFloat(aText.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+                        var bNum = parseFloat(bText.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+                        return asc ? aNum - bNum : bNum - aNum;
+                    } else if (sortType === 'date') {
+                        // Format DD/MM/YYYY ou YYYY-MM-DD
+                        var aParts = aText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                        var bParts = bText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                        var aDate = aParts ? new Date(aParts[3], aParts[2]-1, aParts[1]) : new Date(aText);
+                        var bDate = bParts ? new Date(bParts[3], bParts[2]-1, bParts[1]) : new Date(bText);
+                        return asc ? aDate - bDate : bDate - aDate;
+                    } else {
+                        return asc ? aText.localeCompare(bText, 'fr') : bText.localeCompare(aText, 'fr');
+                    }
+                });
+                rows.forEach(function(row) { tbody.appendChild(row); });
+            });
+        });
+    });
 });

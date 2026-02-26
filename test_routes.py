@@ -347,6 +347,15 @@ get('/admin/sauvegarder', label='Sauvegarder base')
 #  17b. BACKUP AUTOMATIQUE
 # ═══════════════════════════════════════════════════════
 print('[17b] Backup automatique...')
+# Nettoyer les fichiers auto résiduels des exécutions précédentes
+with app.app_context():
+    from database import BACKUP_DIR as _bdir_clean
+    import glob as _glob_clean
+    for _old in _glob_clean.glob(os.path.join(_bdir_clean, 'PretGo_auto_*.pretgo')):
+        try:
+            os.remove(_old)
+        except Exception:
+            pass
 # Configurer le backup auto
 post('/admin/reglages', {
     'action': 'backup_auto',

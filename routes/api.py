@@ -1,9 +1,11 @@
 """PretGo — Blueprint : api"""
 from flask import Blueprint, jsonify, request, url_for
+from werkzeug.utils import secure_filename
 from database import get_setting
 from utils import get_app_db, admin_required, allowed_file, get_categories_personnes, UPLOAD_FOLDER
 import json
 import os
+import string
 import uuid
 
 bp = Blueprint('api', __name__)
@@ -217,4 +219,59 @@ def api_scan():
             'url': url_for('inventaire.modifier_materiel', mat_id=mat['id']),
         })
 
+
+@bp.route('/api/parcourir-dossiers')
+@admin_required
+def api_parcourir_dossiers():
+    """API JSON : liste les sous-dossiers d'un chemin donné pour l'explorateur de fichiers."""
+    chemin = request.args.get('path', '').strip()
+
+    # Si pas de chemin fourni : lister les lecteurs (Windows) ou /
+    if not chemin:
+        if os.name == 'nt':
+            # Lister les lecteurs disponibles sur Windows
+            drives = []
+            for letter in string.ascii_uppercase:
+                drive = f'{letter}:\\';
+                if os.path.exists(drive):
+                    drives.append({'name': f'{letter}:', 'path': drive})
+            return jsonify({'current': '', 'parent': '', 'folders': drives, 'is_root': True})
+        else:
+            chemin = '/'
+
+    # Normaliser le chemin
+    chemin = os.path.normpath(chemin)
+
+    # Vérifier que le chemin existe et est un dossier
+    if not os.path.isdir(chemin):
+        return jsonify({'error': f'Le dossier « {chemin} » n\'existe pas.'}), 404
+
+    # Calculer le parent
+    parent = os.path.dirname(chemin)
+    # Sur Windows, si on est à la racine d'un lecteur (ex. C:\), parent = vide pour revenir aux lecteurs
+    is_drive_root = (os.name == 'nt' and os.path.splitdrive(chemin)[1] in ('\\', '/', ''))
+    if is_drive_root:
+        parent = ''  # Retour à la liste des lecteurs
+
+    # Lister les sous-dossiers
+    folders = []
+    try:
+        for entry in sorted(os.scandir(chemin), key=lambda e: e.name.lower()):
+            if entry.is_dir():
+                try:
+                    # Vérifier qu'on a accès en lecture
+                    os.listdir(entry.path)
+                    folders.append({'name': entry.name, 'path': entry.path})
+                except PermissionError:
+                    # Dossier inaccessible, l'afficher grisé
+                    folders.append({'name': entry.name, 'path': entry.path, 'locked': True})
+    except PermissionError:
+        return jsonify({'error': f'Accès refusé au dossier « {chemin} ».'}), 403
+
+    return jsonify({
+        'current': chemin,
+        'parent': parent,
+        'folders': folders,
+        'is_root': False
+    })
 

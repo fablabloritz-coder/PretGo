@@ -127,10 +127,19 @@ L'application est accessible sur **http://localhost:5000**.
 ## 📁 Structure du projet
 
 ```
-├── app.py                  # Application Flask principale (~3700 lignes)
-├── database.py             # Gestion SQLite (init, migrations, helpers)
-├── test_routes.py          # Tests automatisés (68 tests)
-├── requirements.txt        # Dépendances Python (Flask)
+├── app.py                  # Point d'entrée Flask (~185 lignes)
+├── database.py             # Gestion SQLite (init, migrations, helpers) (~380 lignes)
+├── utils.py                # Utilitaires, filtres Jinja2, backup (~740 lignes)
+├── routes/                 # 7 Blueprints Flask
+│   ├── admin.py            # Administration, réglages, backup (~1200 lignes)
+│   ├── prets.py            # Gestion des prêts (~400 lignes)
+│   ├── personnes.py        # Gestion des personnes (~580 lignes)
+│   ├── inventaire.py       # Inventaire, imports CSV (~600 lignes)
+│   ├── core.py             # Pages principales (~190 lignes)
+│   ├── api.py              # API JSON (scan, autocomplete) (~280 lignes)
+│   └── export.py           # Exports CSV (~200 lignes)
+├── test_routes.py          # Tests automatisés (81 tests, ~500 lignes)
+├── requirements.txt        # Dépendances Python (Flask, Waitress)
 ├── installer.bat           # Télécharge Python portable + installe Flask
 ├── lancer.bat              # Lance l'app avec le Python embarqué
 ├── python/                 # Python portable (créé par installer.bat)
@@ -143,9 +152,9 @@ L'application est accessible sur **http://localhost:5000**.
 │   │   └── app.js          # JavaScript front-end
 │   ├── uploads/             # Images de matériel uploadées
 │   └── exemple_personnes.csv
-└── templates/               # Templates Jinja2 (24 fichiers)
+└── templates/               # Templates Jinja2 (35 fichiers)
     ├── base.html            # Layout principal (navbar, Bootstrap 5, mode sombre)
-    ├── index.html           # Tableau de bord / prêts en cours
+    ├── index.html           # Tableau de bord / prêts en cours (paginé)
     ├── nouveau_pret.html    # Formulaire de nouveau prêt
     ├── retour.html          # Interface de retour
     ├── inventaire.html      # Liste du matériel
@@ -191,8 +200,8 @@ Au premier lancement, l'application crée automatiquement :
 
 | Composant | Technologie |
 |-----------|------------|
-| Backend | **Python 3** / **Flask 3.0** |
-| Base de données | **SQLite** (locale, sans serveur) |
+| Backend | **Python 3** / **Flask 3.0** / **Waitress** (WSGI production) |
+| Base de données | **SQLite** (locale, WAL mode, sans serveur) |
 | Frontend | **Bootstrap 5.3** / **Bootstrap Icons** |
 | Codes-barres | **JsBarcode** (client-side) |
 | Graphiques | **Chart.js** (statistiques interactives) |
@@ -209,10 +218,16 @@ Au premier lancement, l'application crée automatiquement :
 
 - **Première connexion sécurisée** : mot de passe par défaut `1234` avec personnalisation obligatoire. Le code de récupération n'est généré qu'après cette étape, garantissant un code **unique par installation**.
 - **Mots de passe** hachés avec scrypt/pbkdf2 (via werkzeug). Migration automatique depuis l'ancien format SHA-256.
+- **En-têtes de sécurité** : Content-Security-Policy (CSP) stricte, X-Content-Type-Options, X-Frame-Options.
+- **Protection CSRF** : tokens de sécurité sur tous les formulaires, exemptions limitées aux API JSON.
+- **Regénération de session** après authentification pour prévenir la fixation de session.
+- **Serveur WSGI Waitress** en production (au lieu du serveur de développement Flask).
+- **Audit logging** : les actions sensibles (login, logout, reset password, reset DB, restauration, génération démo) sont tracées dans les logs.
+- **Protection anti-bruteforce** : rate limiter sur les tentatives de connexion avec nettoyage mémoire automatique.
 - **Clé secrète Flask** configurable via variable d'environnement `FLASK_SECRET_KEY` (une valeur par défaut est fournie pour simplifier le démarrage).
 - **Protection contre l'open redirect** sur le paramètre `next` après authentification.
 - **Autocomplétion sécurisée** : les données utilisateur sont insérées dans le DOM via `textContent` (pas `innerHTML`) pour prévenir les injections XSS.
-- **Encodage URL** systématique des paramètres de recherche dans les liens.
+- **Validation des couleurs du thème** par regex pour éviter les injections CSS.
 
 ---
 
@@ -247,7 +262,12 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 ### Améliorations récentes
 
-- 📅 **Date de retour précise** : nouveau type de durée permettant de choisir une date exacte de retour via un calendrier visuel (Flatpickr, thème sombre, locale FR)
+- 🏗️ **Architecture Blueprints** : `app.py` refactorisé en 7 modules (core, prets, personnes, inventaire, admin, api, export)
+- 🛡️ **Sécurité renforcée** : CSP header, session regeneration, audit logging, rate limiter, Waitress WSGI
+- ⚡ **Performance** : cache de settings, requêtes GROUP BY au lieu de N+1, pagination du tableau de bord
+- 📁 **Explorateur de dossiers** : sélection visuelle du répertoire de sauvegarde
+- 📊 **Backup automatique** : sauvegardes planifiées avec rotation configurable
+- 📅 **Date de retour précise** : nouveau type de durée avec calendrier visuel (Flatpickr, thème sombre, locale FR)
 - ⏰ **Heure de retour configurable** : l'heure limite de retour utilise désormais l'heure de fin de journée configurée dans les réglages (au lieu de 23h59)
 - 🎨 **Thème couleur personnalisable** et **mode sombre** complet
 - 📊 **Tableau de bord statistiques** avec graphiques interactifs (Chart.js)
