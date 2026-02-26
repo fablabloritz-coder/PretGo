@@ -202,6 +202,14 @@ with app.app_context():
         'duree_type': 'jours', 'duree_jours': '7'
     }, label='Créer prêt 3 (avec matériel)')
 
+    # Prêt avec date précise
+    post('/nouveau-pret', {
+        'personne_id': str(pid),
+        'items_description[]': 'Objet date précise',
+        'items_materiel_id[]': '',
+        'duree_type': 'date_precise', 'date_retour_prevue': '2026-12-31'
+    }, label='Créer prêt 4 (date précise)')
+
     # ── API scan sur matériel en prêt ──
     r = c.get('/api/scan?code=SCAN-00001')
     data = r.get_json()

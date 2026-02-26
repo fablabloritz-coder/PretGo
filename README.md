@@ -30,7 +30,7 @@ Cette application tourne **en local** sur votre poste — aucun serveur externe,
 
 ### Gestion des prêts
 - Création rapide de prêt avec autocomplétion des personnes et du matériel
-- Durée configurable : heures, jours, fin de journée (heure configurable), ou durée par défaut
+- Durée configurable : heures, jours, fin de journée (heure configurable), date précise (calendrier visuel Flatpickr), ou durée par défaut
 - Retour en un clic avec mise à jour automatique de l'état du matériel
 - Détail, modification et suppression de chaque prêt
 - Historique complet des prêts restitués
@@ -129,7 +129,7 @@ L'application est accessible sur **http://localhost:5000**.
 ```
 ├── app.py                  # Application Flask principale (~3700 lignes)
 ├── database.py             # Gestion SQLite (init, migrations, helpers)
-├── test_routes.py          # Tests automatisés (67 tests)
+├── test_routes.py          # Tests automatisés (68 tests)
 ├── requirements.txt        # Dépendances Python (Flask)
 ├── installer.bat           # Télécharge Python portable + installe Flask
 ├── lancer.bat              # Lance l'app avec le Python embarqué
@@ -196,6 +196,7 @@ Au premier lancement, l'application crée automatiquement :
 | Frontend | **Bootstrap 5.3** / **Bootstrap Icons** |
 | Codes-barres | **JsBarcode** (client-side) |
 | Graphiques | **Chart.js** (statistiques interactives) |
+| Calendrier | **Flatpickr** (sélection de date visuelle, thème sombre, locale FR) |
 | Sécurité | **scrypt/pbkdf2** (hachage des mots de passe) |
 
 **Aucune dépendance lourde** — seul Flask est requis côté Python. L'interface charge Bootstrap et les icônes via CDN.
@@ -244,7 +245,17 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 4. **Push** sur votre branche (`git push origin feature/ma-fonctionnalite`)
 5. Ouvrir une **Pull Request**
 
-### Idées d'améliorations
+### Améliorations récentes
+
+- 📅 **Date de retour précise** : nouveau type de durée permettant de choisir une date exacte de retour via un calendrier visuel (Flatpickr, thème sombre, locale FR)
+- ⏰ **Heure de retour configurable** : l'heure limite de retour utilise désormais l'heure de fin de journée configurée dans les réglages (au lieu de 23h59)
+- 🎨 **Thème couleur personnalisable** et **mode sombre** complet
+- 📊 **Tableau de bord statistiques** avec graphiques interactifs (Chart.js)
+- 🔊 **Bip sonore configurable** pour le scan webcam (volume, type d'onde)
+- 🏷️ **Catégories personnalisables** pour personnes et matériel (icônes, couleurs, badges, préfixes)
+- 📥 **Gabarits CSV dynamiques** adaptés aux catégories configurées
+
+### Idées d'améliorations futures
 
 - 📅 Système de réservation / planification
 - 📧 Notifications par email (rappels, retards)

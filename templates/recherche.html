@@ -68,7 +68,7 @@
                                 {% if pret.retour_confirme %}
                                     <span class="badge-retourne"><i class="bi bi-check"></i> Retourné</span>
                                 {% else %}
-                                    {% set depasse, _ = calcul_depassement_heures(pret.date_emprunt, pret.duree_pret_heures, pret.duree_pret_jours) %}
+                                    {% set depasse, _ = calcul_depassement_heures(pret.date_emprunt, pret.duree_pret_heures, pret.duree_pret_jours, date_retour_prevue=pret.date_retour_prevue) %}
                                     {% if depasse %}
                                         <span class="badge-urgent"><i class="bi bi-exclamation-triangle"></i> En retard</span>
                                     {% else %}

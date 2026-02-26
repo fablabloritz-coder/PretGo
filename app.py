@@ -158,6 +158,18 @@ def format_duree(pret):
         return 'Durée par défaut'
     # Prêt de type "fin de journée"
     type_duree = pret['type_duree'] if pret['type_duree'] else None
+    if type_duree == 'date_precise':
+        try:
+            drp = pret['date_retour_prevue']
+        except (KeyError, IndexError):
+            drp = None
+        if drp:
+            try:
+                dt_retour = datetime.strptime(drp, '%Y-%m-%d')
+                heure_fin = get_setting('heure_fin_journee', '17:45')
+                return f"Le {dt_retour.strftime('%d/%m/%Y')} (à {heure_fin.replace(':', 'h')})"
+            except Exception:
+                pass
     if type_duree == 'fin_journee':
         heure_fin = get_setting('heure_fin_journee', '17:45')
         return f'Fin de journée ({heure_fin.replace(":", "h")})'
@@ -189,6 +201,19 @@ def retour_theorique_filter(pret):
     type_duree = pret['type_duree'] if pret['type_duree'] else None
     if type_duree in ('aucune',):
         return '—'
+    # Date de retour précise
+    if type_duree == 'date_precise':
+        try:
+            drp = pret['date_retour_prevue']
+        except (KeyError, IndexError):
+            drp = None
+        if drp:
+            try:
+                dt_retour = datetime.strptime(drp, '%Y-%m-%d')
+                heure_fin = get_setting('heure_fin_journee', '17:45')
+                return dt_retour.strftime('%d/%m/%Y') + f" à {heure_fin}"
+            except Exception:
+                return ''
     try:
         dt = datetime.strptime(pret['date_emprunt'], '%Y-%m-%d %H:%M:%S')
         heures = pret['duree_pret_heures'] if pret['duree_pret_heures'] else None
@@ -210,15 +235,34 @@ def retour_theorique_filter(pret):
 
 
 def calcul_depassement_heures(date_emprunt_str, duree_heures, duree_jours,
-                              _duree_defaut=None, _unite_defaut=None):
+                              _duree_defaut=None, _unite_defaut=None,
+                              date_retour_prevue=None, _heure_fin=None):
     """Calcule le dépassement en heures. Retourne (est_depasse, heures_depassement).
 
     Les paramètres optionnels _duree_defaut et _unite_defaut permettent d'éviter
     des appels répétés à get_setting() quand la fonction est appelée en boucle.
+    date_retour_prevue : date précise au format 'YYYY-MM-DD'.
+    _heure_fin : heure de fin de journée (ex: '17:45'), pour éviter des appels répétés.
     """
     try:
         dt = datetime.strptime(date_emprunt_str, '%Y-%m-%d %H:%M:%S')
         now = datetime.now()
+
+        # Date de retour précise : dépassement à l'heure de fin de journée
+        if date_retour_prevue:
+            try:
+                heure_fin = _heure_fin or get_setting('heure_fin_journee', '17:45')
+                h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
+                retour_theorique = datetime.strptime(date_retour_prevue, '%Y-%m-%d').replace(
+                    hour=h_fin, minute=m_fin, second=0)
+            except Exception:
+                retour_theorique = None
+            if retour_theorique:
+                if now > retour_theorique:
+                    delta = now - retour_theorique
+                    return True, delta.total_seconds() / 3600
+                return False, 0
+
         duree_defaut = _duree_defaut if _duree_defaut is not None else float(get_setting('duree_alerte_defaut', '7'))
         unite_defaut = _unite_defaut if _unite_defaut is not None else get_setting('duree_alerte_unite', 'jours')
 
@@ -248,14 +292,16 @@ def utility_processor():
     try:
         conn = get_db()
         prets_actifs = conn.execute(
-            'SELECT date_emprunt, duree_pret_jours, duree_pret_heures FROM prets WHERE retour_confirme = 0'
+            'SELECT date_emprunt, duree_pret_jours, duree_pret_heures, date_retour_prevue FROM prets WHERE retour_confirme = 0'
         ).fetchall()
         duree_def = float(get_setting('duree_alerte_defaut', '7'))
         unite_def = get_setting('duree_alerte_unite', 'jours')
+        heure_fin = get_setting('heure_fin_journee', '17:45')
         for p in prets_actifs:
             depasse, _ = calcul_depassement_heures(
                 p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
-                _duree_defaut=duree_def, _unite_defaut=unite_def
+                _duree_defaut=duree_def, _unite_defaut=unite_def,
+                date_retour_prevue=p['date_retour_prevue'], _heure_fin=heure_fin
             )
             if depasse:
                 nb_alertes += 1
@@ -383,6 +429,7 @@ def nouveau_pret():
         duree_type = request.form.get('duree_type', 'defaut')
         duree_pret_jours = None
         duree_pret_heures = None
+        date_retour_prevue = None
 
         if duree_type == 'heures':
             h = request.form.get('duree_heures', '').strip()
@@ -398,6 +445,8 @@ def nouveau_pret():
                     duree_pret_jours = int(j)
                 except ValueError:
                     pass
+        elif duree_type == 'date_precise':
+            date_retour_prevue = request.form.get('date_retour_prevue', '').strip() or None
         elif duree_type == 'fin_journee':
             heure_fin = get_setting('heure_fin_journee', '17:45')
             h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
@@ -418,9 +467,10 @@ def nouveau_pret():
 
             cursor = conn.execute(
                 '''INSERT INTO prets (personne_id, descriptif_objets, date_emprunt,
-                   notes, duree_pret_jours, duree_pret_heures, type_duree, lieu_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures, duree_type, lieu_id)
+                   notes, duree_pret_jours, duree_pret_heures, type_duree, date_retour_prevue, lieu_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures,
+                 duree_type, date_retour_prevue, lieu_id)
             )
             pret_id = cursor.lastrowid
 
@@ -1048,15 +1098,17 @@ def export_page():
     }
     # Compter alertes
     prets_actifs = conn.execute(
-        'SELECT date_emprunt, duree_pret_jours, duree_pret_heures FROM prets WHERE retour_confirme = 0'
+        'SELECT date_emprunt, duree_pret_jours, duree_pret_heures, date_retour_prevue FROM prets WHERE retour_confirme = 0'
     ).fetchall()
     nb_alertes = 0
     duree_def = float(get_setting('duree_alerte_defaut', '7'))
     unite_def = get_setting('duree_alerte_unite', 'jours')
+    heure_fin = get_setting('heure_fin_journee', '17:45')
     for p in prets_actifs:
         depasse, _ = calcul_depassement_heures(
             p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
-            _duree_defaut=duree_def, _unite_defaut=unite_def
+            _duree_defaut=duree_def, _unite_defaut=unite_def,
+            date_retour_prevue=p['date_retour_prevue'], _heure_fin=heure_fin
         )
         if depasse:
             nb_alertes += 1
@@ -1159,11 +1211,13 @@ def export_alertes():
 
     duree_def = float(get_setting('duree_alerte_defaut', '7'))
     unite_def = get_setting('duree_alerte_unite', 'jours')
+    heure_fin = get_setting('heure_fin_journee', '17:45')
     alertes_list = []
     for pret in prets_actifs:
         depasse, heures_dep = calcul_depassement_heures(
             pret['date_emprunt'], pret['duree_pret_heures'], pret['duree_pret_jours'],
-            _duree_defaut=duree_def, _unite_defaut=unite_def
+            _duree_defaut=duree_def, _unite_defaut=unite_def,
+            date_retour_prevue=pret['date_retour_prevue'], _heure_fin=heure_fin
         )
         if depasse:
             if heures_dep < 24:
@@ -1502,12 +1556,14 @@ def alertes():
     duree_defaut = get_setting('duree_alerte_defaut', '7')
     unite_defaut = get_setting('duree_alerte_unite', 'jours')
     duree_def = float(duree_defaut)
+    heure_fin = get_setting('heure_fin_journee', '17:45')
 
     alertes_list = []
     for pret in prets_actifs:
         depasse, heures_dep = calcul_depassement_heures(
             pret['date_emprunt'], pret['duree_pret_heures'], pret['duree_pret_jours'],
-            _duree_defaut=duree_def, _unite_defaut=unite_defaut
+            _duree_defaut=duree_def, _unite_defaut=unite_defaut,
+            date_retour_prevue=pret['date_retour_prevue'], _heure_fin=heure_fin
         )
         if depasse:
             # Formater le dépassement lisiblement
@@ -2279,6 +2335,7 @@ def modifier_pret(pret_id):
         duree_type = request.form.get('duree_type', 'defaut')
         duree_pret_jours = None
         duree_pret_heures = None
+        date_retour_prevue = None
 
         if duree_type == 'heures':
             h = request.form.get('duree_heures', '').strip()
@@ -2294,6 +2351,8 @@ def modifier_pret(pret_id):
                     duree_pret_jours = int(j)
                 except ValueError:
                     pass
+        elif duree_type == 'date_precise':
+            date_retour_prevue = request.form.get('date_retour_prevue', '').strip() or None
         elif duree_type == 'fin_journee':
             heure_fin = get_setting('heure_fin_journee', '17:45')
             h_fin, m_fin = (int(x) for x in heure_fin.split(':'))
@@ -2334,11 +2393,11 @@ def modifier_pret(pret_id):
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             conn.execute(
                 '''UPDATE prets SET personne_id=?, descriptif_objets=?, notes=?,
-                   duree_pret_jours=?, duree_pret_heures=?, type_duree=?, materiel_id=NULL,
-                   lieu_id=?, date_modification=?
+                   duree_pret_jours=?, duree_pret_heures=?, type_duree=?, date_retour_prevue=?,
+                   materiel_id=NULL, lieu_id=?, date_modification=?
                    WHERE id=?''',
                 (personne_id, descriptif, notes, duree_pret_jours, duree_pret_heures,
-                 duree_type, lieu_id, now, pret_id)
+                 duree_type, date_retour_prevue, lieu_id, now, pret_id)
             )
             conn.commit()
             conn.close()
@@ -3415,15 +3474,17 @@ def statistiques():
     # ── Taux de retour à l'heure ──
     duree_def = float(get_setting('duree_alerte_defaut', '7'))
     unite_def = get_setting('duree_alerte_unite', 'jours')
+    heure_fin = get_setting('heure_fin_journee', '17:45')
     prets_retournes_list = conn.execute('''
-        SELECT date_emprunt, date_retour, duree_pret_heures, duree_pret_jours
+        SELECT date_emprunt, date_retour, duree_pret_heures, duree_pret_jours, date_retour_prevue
         FROM prets WHERE retour_confirme = 1 AND date_retour IS NOT NULL
     ''').fetchall()
     retours_a_lheure = 0
     for p in prets_retournes_list:
         depasse, _ = calcul_depassement_heures(
             p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
-            _duree_defaut=duree_def, _unite_defaut=unite_def
+            _duree_defaut=duree_def, _unite_defaut=unite_def,
+            date_retour_prevue=p['date_retour_prevue'], _heure_fin=heure_fin
         )
         if not depasse:
             retours_a_lheure += 1

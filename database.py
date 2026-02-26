@@ -84,6 +84,7 @@ def init_db():
             duree_pret_jours INTEGER DEFAULT NULL,
             duree_pret_heures REAL DEFAULT NULL,
             type_duree TEXT DEFAULT 'defaut',
+            date_retour_prevue TEXT DEFAULT NULL,
             materiel_id INTEGER DEFAULT NULL,
             date_modification DATETIME DEFAULT NULL,
             FOREIGN KEY (personne_id) REFERENCES personnes(id),
@@ -167,6 +168,7 @@ def init_db():
         ('duree_pret_jours', 'INTEGER DEFAULT NULL'),
         ('duree_pret_heures', 'REAL DEFAULT NULL'),
         ('type_duree', "TEXT DEFAULT 'defaut'"),
+        ('date_retour_prevue', 'TEXT DEFAULT NULL'),
         ('materiel_id', 'INTEGER DEFAULT NULL'),
         ('lieu_id', 'INTEGER DEFAULT NULL'),
     ]:
