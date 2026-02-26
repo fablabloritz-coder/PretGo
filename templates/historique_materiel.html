@@ -90,7 +90,7 @@
                         <td>
                             <div class="fw-semibold">{{ pret.prenom }} {{ pret.nom }}</div>
                             <small class="text-muted">
-                                {{ pret.categorie or '' }}
+                                <span class="cat-badge" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span>
                                 {% if pret.classe %} — {{ pret.classe }}{% endif %}
                             </small>
                         </td>

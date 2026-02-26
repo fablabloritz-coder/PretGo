@@ -19,6 +19,8 @@ Vous gérez le matériel informatique d'un établissement scolaire (collège, ly
 - **Gérer un inventaire** de matériel avec numéros de série, étiquettes, images
 - **Importer/exporter** facilement des listes de personnes et de matériel en CSV
 - **Imprimer des étiquettes** avec code-barres pour le matériel
+- **Consulter des statistiques** détaillées sur l’activité de prêt
+- **Personnaliser l’interface** : thème couleur, mode sombre, champs dynamiques
 
 Cette application tourne **en local** sur votre poste — aucun serveur externe, aucune donnée dans le cloud.
 
@@ -125,8 +127,9 @@ L'application est accessible sur **http://localhost:5000**.
 ## 📁 Structure du projet
 
 ```
-├── app.py                  # Application Flask principale
+├── app.py                  # Application Flask principale (~3700 lignes)
 ├── database.py             # Gestion SQLite (init, migrations, helpers)
+├── test_routes.py          # Tests automatisés (67 tests)
 ├── requirements.txt        # Dépendances Python (Flask)
 ├── installer.bat           # Télécharge Python portable + installe Flask
 ├── lancer.bat              # Lance l'app avec le Python embarqué
@@ -140,8 +143,8 @@ L'application est accessible sur **http://localhost:5000**.
 │   │   └── app.js          # JavaScript front-end
 │   ├── uploads/             # Images de matériel uploadées
 │   └── exemple_personnes.csv
-└── templates/               # Templates Jinja2 (22 fichiers)
-    ├── base.html            # Layout principal (navbar, Bootstrap 5)
+└── templates/               # Templates Jinja2 (24 fichiers)
+    ├── base.html            # Layout principal (navbar, Bootstrap 5, mode sombre)
     ├── index.html           # Tableau de bord / prêts en cours
     ├── nouveau_pret.html    # Formulaire de nouveau prêt
     ├── retour.html          # Interface de retour
@@ -179,6 +182,8 @@ Au premier lancement, l'application crée automatiquement :
 | Taille code-barres | Hauteur des codes-barres sur les étiquettes | 50 |
 | Volume du bip | Volume du bip sonore lors du scan webcam | 15% |
 | Type de bip | Forme d'onde du bip (sine, carré, triangle, dent de scie) | Sine |
+| Couleur primaire | Couleur du thème de l'interface | #4361ee |
+| Mode sombre | Activer/désactiver le thème sombre | Désactivé |
 
 ---
 
@@ -190,6 +195,7 @@ Au premier lancement, l'application crée automatiquement :
 | Base de données | **SQLite** (locale, sans serveur) |
 | Frontend | **Bootstrap 5.3** / **Bootstrap Icons** |
 | Codes-barres | **JsBarcode** (client-side) |
+| Graphiques | **Chart.js** (statistiques interactives) |
 | Sécurité | **scrypt/pbkdf2** (hachage des mots de passe) |
 
 **Aucune dépendance lourde** — seul Flask est requis côté Python. L'interface charge Bootstrap et les icônes via CDN.
@@ -240,12 +246,11 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 ### Idées d'améliorations
 
-- 📊 Tableau de bord statistique (taux d'utilisation, graphiques) + export des données
-- 📅 Ajout de la date précise de fin de prêt
+- 📅 Système de réservation / planification
+- 📧 Notifications par email (rappels, retards)
+- 👥 Mode multi-utilisateurs avec rôles (admin, gestionnaire, consultant)
 - 🔧 Gestion du cycle de vie du matériel (maintenance, garantie, rebut)
-- 📜 Générer dynamiquement les champs personnalisées des pdfs de prêt et permettra l'edition de formulaire
-- 🎨 Thème de couleur personnalisable
-- 🔦 Support natif pour douchette USB (Gestion des erreurs)
+- 🌐 Mode hors-ligne (PWA)
 
 ---
 
@@ -261,3 +266,4 @@ Ce projet est distribué sous licence **MIT**. Voir le fichier [LICENSE](LICENSE
 - [Bootstrap](https://getbootstrap.com/) — framework CSS responsive
 - [Bootstrap Icons](https://icons.getbootstrap.com/) — icônes SVG
 - [JsBarcode](https://github.com/lindell/JsBarcode) — génération de codes-barres côté client
+- [Chart.js](https://www.chartjs.org/) — graphiques interactifs

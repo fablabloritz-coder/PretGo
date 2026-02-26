@@ -181,6 +181,18 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # ── Index sur les clés étrangères pour accélérer les requêtes ──
+    cursor.executescript('''
+        CREATE INDEX IF NOT EXISTS idx_prets_personne_id ON prets(personne_id);
+        CREATE INDEX IF NOT EXISTS idx_prets_materiel_id ON prets(materiel_id);
+        CREATE INDEX IF NOT EXISTS idx_prets_lieu_id ON prets(lieu_id);
+        CREATE INDEX IF NOT EXISTS idx_prets_retour_confirme ON prets(retour_confirme);
+        CREATE INDEX IF NOT EXISTS idx_pret_materiels_pret_id ON pret_materiels(pret_id);
+        CREATE INDEX IF NOT EXISTS idx_pret_materiels_materiel_id ON pret_materiels(materiel_id);
+        CREATE INDEX IF NOT EXISTS idx_valeurs_champs_champ_id ON valeurs_champs_personnalises(champ_id);
+        CREATE INDEX IF NOT EXISTS idx_valeurs_champs_entite_id ON valeurs_champs_personnalises(entite_id);
+    ''')
+
     # ── Migration colonne prefixe_inventaire pour catégories matériel ──
     try:
         cursor.execute("ALTER TABLE categories_materiel ADD COLUMN prefixe_inventaire TEXT DEFAULT ''")

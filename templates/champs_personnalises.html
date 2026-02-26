@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Champs personnalisés - Administration{% endblock %}
+{% block title %}Champs & Fiches - Administration{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h1 class="page-title mb-0">
-        <i class="bi bi-input-cursor-text text-primary"></i> Champs personnalisés
+        <i class="bi bi-input-cursor-text text-primary"></i> Champs & Fiches
     </h1>
     <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark">
         <i class="bi bi-arrow-left"></i> Administration
@@ -243,57 +243,155 @@
     </div>
 </div>
 
-<!-- ═══ Gabarit / Export ═══ -->
+<!-- ═══ Aperçu live des formulaires ═══ -->
 <div class="card border-0 shadow-sm mt-4">
     <div class="card-header bg-white py-3">
         <h5 class="mb-0">
-            <i class="bi bi-file-earmark-ruled text-info"></i> Gabarits de fiches
+            <i class="bi bi-eye-fill text-primary"></i> Aperçu des formulaires
+            <small class="text-muted fw-normal">— Rendu en temps réel de vos champs personnalisés</small>
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-4">
+            <!-- Aperçu formulaire Personnes -->
+            <div class="col-12 col-lg-6">
+                <div class="border rounded p-3" style="background: #f8f9fb;">
+                    <h6 class="fw-bold mb-3 text-center">
+                        <i class="bi bi-people-fill text-primary"></i> Formulaire « Ajouter une personne »
+                    </h6>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Nom <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" value="Dupont" disabled>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Prénom <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" value="Marie" disabled>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Catégorie</label>
+                        <select class="form-select form-select-sm" disabled>
+                            <option>Élève</option>
+                        </select>
+                    </div>
+                    {% if champs_personnes %}
+                    <hr class="my-2">
+                    <div class="small text-muted mb-2"><i class="bi bi-input-cursor-text"></i> Champs personnalisés :</div>
+                    {% for champ in champs_personnes %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">
+                            {{ champ.label }}
+                            {% if champ.obligatoire %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {% if champ.type_champ == 'texte' %}
+                        <input type="text" class="form-control form-control-sm" placeholder="{{ champ.label }}" disabled>
+                        {% elif champ.type_champ == 'texte_long' %}
+                        <textarea class="form-control form-control-sm" rows="2" placeholder="{{ champ.label }}" disabled></textarea>
+                        {% elif champ.type_champ == 'nombre' %}
+                        <input type="number" class="form-control form-control-sm" placeholder="0" disabled>
+                        {% elif champ.type_champ == 'date' %}
+                        <input type="date" class="form-control form-control-sm" disabled>
+                        {% elif champ.type_champ == 'choix' %}
+                        <select class="form-select form-select-sm" disabled>
+                            <option value="">— Choisir —</option>
+                            {% for opt in champ.options.split(',') %}
+                            <option>{{ opt.strip() }}</option>
+                            {% endfor %}
+                        </select>
+                        {% elif champ.type_champ == 'case_a_cocher' %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" disabled>
+                            <label class="form-check-label small">{{ champ.label }}</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center text-muted small py-2">
+                        <i class="bi bi-plus-circle"></i> Ajoutez des champs pour voir l'aperçu
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Aperçu formulaire Matériel -->
+            <div class="col-12 col-lg-6">
+                <div class="border rounded p-3" style="background: #f8f9fb;">
+                    <h6 class="fw-bold mb-3 text-center">
+                        <i class="bi bi-pc-display text-primary"></i> Formulaire « Ajouter du matériel »
+                    </h6>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">N° inventaire <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" value="INV-00123" disabled>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Type <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" value="Ordinateur portable" disabled>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Marque / Modèle</label>
+                        <div class="row g-1">
+                            <div class="col-6"><input type="text" class="form-control form-control-sm" value="Lenovo" disabled></div>
+                            <div class="col-6"><input type="text" class="form-control form-control-sm" value="ThinkPad" disabled></div>
+                        </div>
+                    </div>
+                    {% if champs_materiel %}
+                    <hr class="my-2">
+                    <div class="small text-muted mb-2"><i class="bi bi-input-cursor-text"></i> Champs personnalisés :</div>
+                    {% for champ in champs_materiel %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">
+                            {{ champ.label }}
+                            {% if champ.obligatoire %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {% if champ.type_champ == 'texte' %}
+                        <input type="text" class="form-control form-control-sm" placeholder="{{ champ.label }}" disabled>
+                        {% elif champ.type_champ == 'texte_long' %}
+                        <textarea class="form-control form-control-sm" rows="2" placeholder="{{ champ.label }}" disabled></textarea>
+                        {% elif champ.type_champ == 'nombre' %}
+                        <input type="number" class="form-control form-control-sm" placeholder="0" disabled>
+                        {% elif champ.type_champ == 'date' %}
+                        <input type="date" class="form-control form-control-sm" disabled>
+                        {% elif champ.type_champ == 'choix' %}
+                        <select class="form-select form-select-sm" disabled>
+                            <option value="">— Choisir —</option>
+                            {% for opt in champ.options.split(',') %}
+                            <option>{{ opt.strip() }}</option>
+                            {% endfor %}
+                        </select>
+                        {% elif champ.type_champ == 'case_a_cocher' %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" disabled>
+                            <label class="form-check-label small">{{ champ.label }}</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center text-muted small py-2">
+                        <i class="bi bi-plus-circle"></i> Ajoutez des champs pour voir l'aperçu
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Fiche de prêt vierge ═══ -->
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white py-3">
+        <h5 class="mb-0">
+            <i class="bi bi-file-earmark-text text-info"></i> Fiche de prêt imprimable
         </h5>
     </div>
     <div class="card-body">
         <p class="text-muted mb-3">
-            Les champs définis ci-dessus seront automatiquement utilisés dans les formulaires de PretGo.
-            Pour des fiches imprimables personnalisées (avec mise en page avancée), vous pouvez exporter les données
-            vers un tableur ou un logiciel bureautique comme <strong>OnlyOffice</strong>, <strong>LibreOffice</strong> ou <strong>Microsoft Office</strong>.
+            Générez une fiche de prêt vierge imprimable directement depuis le navigateur (Ctrl+P).
+            Les champs personnalisés définis ci-dessus y apparaîtront automatiquement.
         </p>
-        <div class="row g-3">
-            <div class="col-12 col-md-4">
-                <div class="card border h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-filetype-csv fs-1 text-success d-block mb-2"></i>
-                        <h6 class="fw-bold">Export CSV</h6>
-                        <p class="text-muted small">Exportez toutes les données vers un fichier CSV compatible avec tout tableur.</p>
-                        <a href="{{ url_for('export_statistiques') }}" class="btn btn-outline-success btn-sm">
-                            <i class="bi bi-download"></i> Exporter les prêts
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div class="card border h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-file-earmark-text fs-1 text-primary d-block mb-2"></i>
-                        <h6 class="fw-bold">Fiche de prêt</h6>
-                        <p class="text-muted small">Générez une fiche de prêt pré-remplie ou vierge, imprimable en PDF depuis le navigateur.</p>
-                        <a href="{{ url_for('fiche_pret_vierge') }}" class="btn btn-outline-primary btn-sm" target="_blank">
-                            <i class="bi bi-printer"></i> Fiche vierge
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div class="card border h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-window-stack fs-1 text-info d-block mb-2"></i>
-                        <h6 class="fw-bold">OnlyOffice / LibreOffice</h6>
-                        <p class="text-muted small">Pour des fiches avancées, exportez en CSV puis ouvrez dans OnlyOffice ou LibreOffice pour un publipostage.</p>
-                        <a href="https://www.onlyoffice.com/fr/download-desktop.aspx" class="btn btn-outline-info btn-sm" target="_blank" rel="noopener">
-                            <i class="bi bi-box-arrow-up-right"></i> OnlyOffice
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <a href="{{ url_for('fiche_pret_vierge') }}" class="btn btn-primary" target="_blank">
+            <i class="bi bi-printer"></i> Ouvrir la fiche de prêt vierge
+        </a>
     </div>
 </div>
 

@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 import unicodedata
+import random
 import uuid
 import zipfile
 from werkzeug.utils import secure_filename
@@ -47,9 +48,9 @@ with app.app_context():
     try:
         init_db()
     except Exception as e:
-        import traceback
+        import traceback as _tb
         print("\n[ERREUR INIT_DB]", e)
-        traceback.print_exc()
+        _tb.print_exc()
         raise
 
 
@@ -184,6 +185,10 @@ def retour_theorique_filter(pret):
     """Calcule la date de retour théorique."""
     if not pret or not pret['date_emprunt']:
         return ''
+    # Pas de retour théorique pour les prêts sans durée
+    type_duree = pret['type_duree'] if pret['type_duree'] else None
+    if type_duree in ('aucune',):
+        return '—'
     try:
         dt = datetime.strptime(pret['date_emprunt'], '%Y-%m-%d %H:%M:%S')
         heures = pret['duree_pret_heures'] if pret['duree_pret_heures'] else None
@@ -276,6 +281,7 @@ def utility_processor():
         'couleur_navbar': get_setting('theme_couleur_navbar', '#1a56db'),
         'logo': get_setting('theme_logo', ''),
         'nom_application': get_setting('theme_nom_application', 'PretGo'),
+        'mode_sombre': get_setting('theme_mode_sombre', '0') == '1',
     }
 
     return {
@@ -1142,9 +1148,11 @@ def export_alertes():
     """Exporter les prêts en dépassement (alertes)."""
     conn = get_db()
     prets_actifs = conn.execute('''
-        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
+        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie,
+               l.nom AS lieu_nom
         FROM prets p
         JOIN personnes pe ON p.personne_id = pe.id
+        LEFT JOIN lieux l ON p.lieu_id = l.id
         WHERE p.retour_confirme = 0
         ORDER BY p.date_emprunt ASC
     ''').fetchall()
@@ -1754,32 +1762,22 @@ def admin_reglages():
                 msg += f' Suffixe : « {suffixe} »'
             flash(msg, 'success')
 
+        elif action == 'theme_reset':
+            # Réinitialiser le thème aux valeurs par défaut
+            set_setting('theme_couleur_primaire', '#1a73e8')
+            set_setting('theme_couleur_navbar', '#1a56db')
+            set_setting('theme_nom_application', 'PretGo')
+            set_setting('theme_logo', '')
+            set_setting('theme_mode_sombre', '0')
+            flash('Thème réinitialisé aux valeurs par défaut.', 'success')
+
         elif action == 'theme':
             couleur_primaire = request.form.get('theme_couleur_primaire', '#1a73e8').strip()
             couleur_navbar = request.form.get('theme_couleur_navbar', '#1a56db').strip()
-            nom_app = request.form.get('theme_nom_application', 'PretGo').strip()
+            mode_sombre = '1' if request.form.get('theme_mode_sombre') else '0'
             set_setting('theme_couleur_primaire', couleur_primaire)
             set_setting('theme_couleur_navbar', couleur_navbar)
-            set_setting('theme_nom_application', nom_app)
-
-            # Gestion de l'upload du logo
-            if 'theme_logo_file' in request.files:
-                fichier_logo = request.files['theme_logo_file']
-                if fichier_logo and fichier_logo.filename:
-                    if allowed_file(fichier_logo.filename):
-                        ext = fichier_logo.filename.rsplit('.', 1)[1].lower()
-                        logo_filename = f'logo_custom.{ext}'
-                        logo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
-                        os.makedirs(logo_dir, exist_ok=True)
-                        logo_path = os.path.join(logo_dir, logo_filename)
-                        fichier_logo.save(logo_path)
-                        set_setting('theme_logo', f'uploads/{logo_filename}')
-                    else:
-                        flash('Format de logo non accepté (PNG, JPG, GIF, WebP, SVG).', 'warning')
-
-            # Supprimer le logo si demandé
-            if request.form.get('supprimer_logo') == '1':
-                set_setting('theme_logo', '')
+            set_setting('theme_mode_sombre', mode_sombre)
 
             flash('Thème personnalisé enregistré.', 'success')
 
@@ -1814,7 +1812,8 @@ def admin_reglages():
                            theme_couleur_primaire=get_setting('theme_couleur_primaire', '#1a73e8'),
                            theme_couleur_navbar=get_setting('theme_couleur_navbar', '#1a56db'),
                            theme_logo=get_setting('theme_logo', ''),
-                           theme_nom_application=get_setting('theme_nom_application', 'PretGo'))
+                           theme_nom_application=get_setting('theme_nom_application', 'PretGo'),
+                           theme_mode_sombre=get_setting('theme_mode_sombre', '0'))
 
 
 # ============================================================
@@ -1843,7 +1842,6 @@ def admin_reset_db():
 @admin_required
 def admin_generer_demo():
     """Génère des données de démonstration dynamiques, adaptées aux catégories configurées."""
-    import random
     conn = get_db()
 
     # ══════════════════════════════════════════════════════════
@@ -2241,6 +2239,7 @@ def detail_pret(pret_id):
 # ============================================================
 
 @app.route('/pret/modifier/<int:pret_id>', methods=['GET', 'POST'])
+@admin_required
 def modifier_pret(pret_id):
     conn = get_db()
 
@@ -2643,10 +2642,16 @@ def modifier_materiel(mat_id):
 @admin_required
 def supprimer_materiel(mat_id):
     conn = get_db()
-    # Vérifier si le matériel est actuellement prêté
+    # Vérifier si le matériel est actuellement prêté (legacy + pret_materiels)
     pret_actif = conn.execute(
-        'SELECT COUNT(*) FROM prets WHERE materiel_id = ? AND retour_confirme = 0',
-        (mat_id,)
+        '''SELECT COUNT(*) FROM (
+            SELECT id FROM prets WHERE materiel_id = ? AND retour_confirme = 0
+            UNION
+            SELECT p.id FROM prets p
+            JOIN pret_materiels pm ON pm.pret_id = p.id
+            WHERE pm.materiel_id = ? AND p.retour_confirme = 0
+        )''',
+        (mat_id, mat_id)
     ).fetchone()[0]
     if pret_actif > 0:
         flash('Impossible de supprimer ce matériel : il est actuellement prêté. Effectuez d\'abord le retour.', 'danger')
@@ -2678,14 +2683,15 @@ def historique_materiel(mat_id):
         flash('Matériel non trouvé.', 'danger')
         return redirect(url_for('inventaire'))
 
-    # Tous les prêts liés à ce matériel, du plus récent au plus ancien
+    # Tous les prêts liés à ce matériel (legacy + pret_materiels), sans doublons
     prets = conn.execute('''
-        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
+        SELECT DISTINCT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
         FROM prets p
         JOIN personnes pe ON p.personne_id = pe.id
-        WHERE p.materiel_id = ?
+        LEFT JOIN pret_materiels pm ON pm.pret_id = p.id
+        WHERE p.materiel_id = ? OR pm.materiel_id = ?
         ORDER BY p.date_emprunt DESC
-    ''', (mat_id,)).fetchall()
+    ''', (mat_id, mat_id)).fetchall()
 
     # Statistiques rapides
     stats = {
@@ -3476,17 +3482,33 @@ def export_statistiques():
     ''').fetchall()
     conn.close()
 
+    # Récupérer la durée d'alerte par défaut pour l'afficher dans le CSV
+    duree_defaut = get_setting('duree_alerte_defaut', '7')
+    unite_defaut = get_setting('duree_alerte_unite', 'jours')
+
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     writer.writerow(['ID', 'Nom', 'Prénom', 'Catégorie', 'Classe',
                      'Objets', 'Date emprunt', 'Date retour',
                      'Retourné', 'Notes', 'Type durée', 'Jours', 'Heures', 'Lieu'])
     for p in prets:
+        # Afficher la durée réelle au lieu de "défaut"
+        type_duree = p['type_duree']
+        if not type_duree or type_duree == 'aucune':
+            type_duree = f'Défaut ({duree_defaut} {unite_defaut})'
+        elif type_duree == 'fin_journee':
+            heure_fin = get_setting('heure_fin_journee', '17:45')
+            type_duree = f'Fin de journée ({heure_fin})'
+        elif type_duree == 'heures':
+            type_duree = f'{p["duree_pret_heures"] or ""} heure(s)'
+        elif type_duree == 'jours':
+            type_duree = f'{p["duree_pret_jours"] or ""} jour(s)'
+
         writer.writerow([
             p['id'], p['nom'], p['prenom'], p['categorie'], p['classe'],
             p['descriptif_objets'], p['date_emprunt'], p['date_retour'] or '',
             'Oui' if p['retour_confirme'] else 'Non', p['notes'],
-            p['type_duree'], p['duree_pret_jours'] or '', p['duree_pret_heures'] or '',
+            type_duree, p['duree_pret_jours'] or '', p['duree_pret_heures'] or '',
             p['lieu'] or ''
         ])
 
@@ -3540,8 +3562,7 @@ def ajouter_champ_personnalise():
     nom_champ = re.sub(r'_+', '_', nom_champ).strip('_')
 
     # Normaliser les accents
-    import unicodedata as ud
-    nom_champ = ud.normalize('NFKD', nom_champ).encode('ascii', 'ignore').decode('ascii')
+    nom_champ = unicodedata.normalize('NFKD', nom_champ).encode('ascii', 'ignore').decode('ascii')
 
     conn = get_db()
     # Trouver le prochain ordre

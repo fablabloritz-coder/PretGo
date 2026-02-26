@@ -1,9 +1,9 @@
-"""Test complet de toutes les routes PretGo."""
+"""Test complet de toutes les routes PretGo — v2 (mise à jour 2026-02)."""
 import sys, os
 os.environ['TESTING'] = '1'
 sys.path.insert(0, '.')
 from app import app
-from database import get_db, init_db, reset_db
+from database import get_db, init_db
 
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'test'
@@ -39,7 +39,14 @@ def post(url, data=None, expect=200, label=None):
         errors.append(f'{label}: EXCEPTION {e}')
 
 
-# === Pages publiques ===
+print('=' * 60)
+print('  PretGo — Test de toutes les routes')
+print('=' * 60)
+
+# ═══════════════════════════════════════════════════════
+#  1. PAGES PUBLIQUES (GET)
+# ═══════════════════════════════════════════════════════
+print('\n[1] Pages publiques...')
 get('/')
 get('/nouveau-pret')
 get('/retour')
@@ -48,19 +55,29 @@ get('/recherche?q=test')
 get('/historique')
 get('/etiquettes')
 get('/admin/login')
+
+# ═══════════════════════════════════════════════════════
+#  2. API PUBLIQUES
+# ═══════════════════════════════════════════════════════
+print('[2] API publiques...')
 get('/api/inventaire')
 get('/api/inventaire?q=test')
 get('/api/personnes')
-
-# === API Scan (nouveau) ===
 get('/api/scan', label='API scan sans code')
 get('/api/scan?code=INEXISTANT', label='API scan code inexistant')
 get('/api/scan?code=', label='API scan code vide')
+get('/api/images-materiel', label='API images matériel')
 
-# === Admin login ===
+# ═══════════════════════════════════════════════════════
+#  3. CONNEXION ADMIN
+# ═══════════════════════════════════════════════════════
+print('[3] Connexion admin...')
 post('/admin/login', {'password': 'admin'}, label='Admin login')
 
-# === Pages admin ===
+# ═══════════════════════════════════════════════════════
+#  4. PAGES ADMIN (GET)
+# ═══════════════════════════════════════════════════════
+print('[4] Pages admin...')
 get('/admin')
 get('/admin/reglages')
 get('/personnes')
@@ -69,8 +86,41 @@ get('/categories')
 get('/categories-personnes')
 get('/lieux')
 get('/alertes')
+get('/statistiques')
+get('/statistiques/export', label='Export stats CSV')
+get('/fiche-vierge')
+get('/admin/champs-personnalises', label='Champs & Fiches')
+get('/export')
 
-# === Nettoyage complet des prêts et liens après reset_db ===
+# ═══════════════════════════════════════════════════════
+#  5. EXPORTS CSV
+# ═══════════════════════════════════════════════════════
+print('[5] Exports CSV...')
+get('/historique?format=csv', label='Export historique CSV')
+get('/export-prets', label='Export tous les prêts CSV')
+get('/export-prets-en-cours', label='Export prêts en cours CSV')
+get('/export-alertes', label='Export alertes CSV')
+get('/export-personnes', label='Export personnes CSV')
+get('/export-inventaire', label='Export inventaire CSV')
+
+# ═══════════════════════════════════════════════════════
+#  6. GABARITS TÉLÉCHARGEABLES
+# ═══════════════════════════════════════════════════════
+print('[6] Gabarits...')
+get('/telecharger-gabarit', label='Gabarit personnes CSV')
+get('/telecharger-gabarit-inventaire', label='Gabarit inventaire CSV')
+
+# ═══════════════════════════════════════════════════════
+#  7. PAGES IMPORT
+# ═══════════════════════════════════════════════════════
+print('[7] Pages import...')
+get('/personnes/importer', label='Page import personnes')
+get('/inventaire/importer', label='Page import inventaire')
+
+# ═══════════════════════════════════════════════════════
+#  8. NETTOYAGE PRÊTS EXISTANTS
+# ═══════════════════════════════════════════════════════
+print('[8] Préparation données de test...')
 with app.app_context():
     conn = get_db()
     conn.execute("DELETE FROM pret_materiels")
@@ -78,7 +128,10 @@ with app.app_context():
     conn.commit()
     conn.close()
 
-# === Créer une personne ===
+# ═══════════════════════════════════════════════════════
+#  9. CRUD PERSONNES
+# ═══════════════════════════════════════════════════════
+print('[9] CRUD personnes...')
 post('/personnes/ajouter', {
     'nom': 'TestMasse', 'prenom': 'User', 'categorie': 'eleve'
 }, label='Ajouter personne')
@@ -87,18 +140,47 @@ with app.app_context():
     conn = get_db()
     pers = conn.execute("SELECT id FROM personnes WHERE nom='TestMasse'").fetchone()
     pid = pers['id'] if pers else 1
+    conn.close()
 
-    # === Créer un matériel directement en base ===
+# Modifier personne
+get(f'/personnes/modifier/{pid}', label='Page modifier personne')
+post(f'/personnes/modifier/{pid}', {
+    'nom': 'TestMasse', 'prenom': 'UserModifié', 'categorie': 'eleve', 'classe': '2nde 1'
+}, label='Modifier personne')
+
+# Historique personne
+get(f'/personnes/historique/{pid}', label='Historique personne')
+
+# ═══════════════════════════════════════════════════════
+#  10. CRUD MATÉRIEL  
+# ═══════════════════════════════════════════════════════
+print('[10] CRUD matériel...')
+with app.app_context():
+    conn = get_db()
     conn.execute(
         "INSERT OR IGNORE INTO inventaire (type_materiel, marque, modele, numero_inventaire, numero_serie, etat, actif)"
-        " VALUES ('ordinateur_portable','TestScan','Model1','SCAN-00001','SN-SCAN-001','disponible',1)"
+        " VALUES ('Informatique','TestScan','Model1','SCAN-00001','SN-SCAN-001','disponible',1)"
     )
     conn.commit()
     mat = conn.execute("SELECT id FROM inventaire WHERE numero_inventaire='SCAN-00001'").fetchone()
     mat_id = mat['id'] if mat else None
     print(f'  Matériel créé: id={mat_id}')
+    conn.close()
 
-    # === Créer 3 prêts (1 lié au matériel de test, 2 sans matériel) ===
+# Pages matériel
+get('/inventaire/ajouter', label='Page ajouter matériel')
+if mat_id:
+    get(f'/inventaire/modifier/{mat_id}', label='Page modifier matériel')
+    get(f'/inventaire/historique/{mat_id}', label='Historique matériel')
+
+# ═══════════════════════════════════════════════════════
+#  11. PRÊTS : CRÉATION + SCAN + RETOUR
+# ═══════════════════════════════════════════════════════
+print('[11] Prêts (création, scan, retour)...')
+with app.app_context():
+    conn = get_db()
+
+    # Créer 3 prêts
     post('/nouveau-pret', {
         'personne_id': str(pid),
         'items_description[]': 'Objet masse 1',
@@ -120,7 +202,7 @@ with app.app_context():
         'duree_type': 'jours', 'duree_jours': '7'
     }, label='Créer prêt 3 (avec matériel)')
 
-    # === Test API scan sur matériel en prêt ===
+    # ── API scan sur matériel en prêt ──
     r = c.get('/api/scan?code=SCAN-00001')
     data = r.get_json()
     if data and data.get('found') and data.get('type') == 'pret_actif':
@@ -129,17 +211,26 @@ with app.app_context():
     else:
         errors.append(f'API scan pret_actif: {data}')
 
-    # === Récupérer les prêts actifs ===
+    # ── Récupérer les prêts actifs ──
     prets = conn.execute(
         "SELECT id FROM prets WHERE retour_confirme=0 AND personne_id=?", (pid,)
     ).fetchall()
     pret_ids = [str(p['id']) for p in prets]
     print(f'  {len(pret_ids)} prêts actifs créés')
 
-    # === Test retour en masse vide ===
+    # ── Détail d'un prêt ──
+    if pret_ids:
+        get(f'/pret/{pret_ids[0]}', label='Détail prêt')
+        get(f'/pret/{pret_ids[0]}/fiche', label='Fiche prêt PDF')
+
+    # ── Modifier un prêt ──
+    if pret_ids:
+        get(f'/pret/modifier/{pret_ids[0]}', label='Page modifier prêt')
+
+    # ── Retour en masse vide ──
     post('/retour/masse', {}, label='Retour masse vide')
 
-    # === Test retour en masse avec 2 prêts (multi-value form) ===
+    # ── Retour en masse avec 2 prêts ──
     if len(pret_ids) >= 2:
         r = c.post('/retour/masse', data={
             'pret_ids': pret_ids[:2]
@@ -149,7 +240,6 @@ with app.app_context():
         else:
             errors.append(f'Retour masse 2 prêts: got {r.status_code}')
 
-        # Vérifier qu'il reste bien le bon nombre
         encore = conn.execute(
             "SELECT COUNT(*) as c FROM prets WHERE retour_confirme=0 AND personne_id=?", (pid,)
         ).fetchone()
@@ -160,14 +250,14 @@ with app.app_context():
             ok += 1
             print(f'  Retour en masse OK: {attendu} prêt(s) restant(s)')
 
-    # === Test retour individuel du dernier ===
+    # ── Retour individuel du dernier ──
     restant = conn.execute(
         "SELECT id FROM prets WHERE retour_confirme=0 AND personne_id=?", (pid,)
     ).fetchone()
     if restant:
         post(f'/retour/{restant["id"]}', {'signature': ''}, label='Retour individuel')
 
-    # === API scan : matériel maintenant disponible ===
+    # ── API scan : matériel maintenant disponible ──
     r = c.get('/api/scan?code=SCAN-00001')
     data = r.get_json()
     if data and data.get('found') and data.get('type') == 'materiel':
@@ -176,7 +266,7 @@ with app.app_context():
     else:
         errors.append(f'API scan materiel disponible: {data}')
 
-    # === Vérifier libération matériel ===
+    # ── Vérifier libération matériel ──
     mat_check = conn.execute("SELECT etat FROM inventaire WHERE id=?", (mat_id,)).fetchone()
     if mat_check and mat_check['etat'] == 'disponible':
         ok += 1
@@ -186,15 +276,86 @@ with app.app_context():
 
     conn.close()
 
-# === Autres pages ===
-get('/fiche-vierge')
-get('/historique?format=csv')
+# ═══════════════════════════════════════════════════════
+#  12. SUPPRESSION PERSONNE (après prêts terminés)
+# ═══════════════════════════════════════════════════════
+print('[12] Suppression personne...')
+post(f'/personnes/supprimer/{pid}', {}, label='Supprimer personne')
 
-# === Résultats ===
+# ═══════════════════════════════════════════════════════
+#  13. CATÉGORIES MATÉRIEL
+# ═══════════════════════════════════════════════════════
+print('[13] Catégories matériel...')
+post('/categories', {'nom': 'Test_Cat_Mat'}, label='Ajouter catégorie matériel')
+with app.app_context():
+    conn = get_db()
+    cat = conn.execute("SELECT id FROM categories_materiel WHERE nom='Test_Cat_Mat'").fetchone()
+    if cat:
+        post(f'/categories/supprimer/{cat["id"]}', {}, label='Supprimer catégorie matériel')
+    conn.close()
+
+# ═══════════════════════════════════════════════════════
+#  14. CATÉGORIES PERSONNES
+# ═══════════════════════════════════════════════════════
+print('[14] Catégories personnes...')
+post('/categories-personnes', {
+    'cle': 'test_cat_pers', 'libelle': 'Testeur',
+    'icone': 'bi-person', 'couleur_bg': '#f1f3f4', 'couleur_text': '#5f6368'
+}, label='Ajouter catégorie personne')
+with app.app_context():
+    conn = get_db()
+    cat = conn.execute("SELECT id FROM categories_personnes WHERE cle='test_cat_pers'").fetchone()
+    if cat:
+        post(f'/categories-personnes/supprimer/{cat["id"]}', {}, label='Supprimer catégorie personne')
+    conn.close()
+
+# ═══════════════════════════════════════════════════════
+#  15. LIEUX
+# ═══════════════════════════════════════════════════════
+print('[15] Lieux...')
+post('/lieux', {'nom': 'Salle_Test_123'}, label='Ajouter lieu')
+
+# ═══════════════════════════════════════════════════════
+#  16. CHAMPS PERSONNALISÉS
+# ═══════════════════════════════════════════════════════
+print('[16] Champs personnalisés...')
+post('/admin/champs-personnalises/ajouter', {
+    'entite': 'personne', 'label': 'Champ Test', 'type_champ': 'texte'
+}, label='Ajouter champ personnalisé')
+with app.app_context():
+    conn = get_db()
+    ch = conn.execute("SELECT id FROM champs_personnalises WHERE label='Champ Test'").fetchone()
+    if ch:
+        post(f'/admin/champs-personnalises/supprimer/{ch["id"]}', {}, label='Supprimer champ personnalisé')
+    conn.close()
+
+# ═══════════════════════════════════════════════════════
+#  17. ADMIN : SAUVEGARDE
+# ═══════════════════════════════════════════════════════
+print('[17] Sauvegarde admin...')
+get('/admin/sauvegarder', label='Sauvegarder base')
+
+# ═══════════════════════════════════════════════════════
+#  18. ADMIN : RESET PASSWORD PAGE
+# ═══════════════════════════════════════════════════════
+print('[18] Pages reset/setup password...')
+get('/admin/reset-password', label='Page reset password')
+
+# ═══════════════════════════════════════════════════════
+#  19. ADMIN : DÉCONNEXION
+# ═══════════════════════════════════════════════════════
+print('[19] Déconnexion admin...')
+get('/admin/logout', label='Admin logout')
+
+# ═══════════════════════════════════════════════════════
+#  RÉSULTATS
+# ═══════════════════════════════════════════════════════
 total = ok + len(errors)
-print(f'\n=== {ok}/{total} OK, {len(errors)} ERREURS ===')
+print(f'\n{"=" * 60}')
+print(f'  RÉSULTAT : {ok}/{total} OK, {len(errors)} ERREUR(S)')
+print(f'{"=" * 60}')
 for e in errors:
     print(f'  FAIL: {e}')
 if not errors:
-    print('Tous les tests passent !')
+    print('  ✓ Tous les tests passent !')
 sys.exit(1 if errors else 0)
