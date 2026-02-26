@@ -45,16 +45,16 @@
                 <p class="text-muted small mb-3">
                     Chaque catégorie a sa section séparée.
                     Remplissez seulement les colonnes <strong>nom</strong>,
-                    <strong>prénom</strong> et <strong>classe</strong>.
+                    <strong>prénom</strong>, <strong>classe</strong> et <strong>email</strong> (optionnel).
                 </p>
                 <div class="gabarit-preview">
                     {% for cle, cat in cats_personnes.items() %}
                     <div class="gabarit-section">
                         <div class="gabarit-header">═══ {{ cat.libelle|upper }} ═══</div>
                         {% if loop.first %}
-                        <div class="gabarit-row">DUPONT ; Marie ; {{ cle }} ; <em>3A</em></div>
+                        <div class="gabarit-row">DUPONT ; Marie ; {{ cle }} ; <em>3A</em> ; <em>marie.dupont@ecole.fr</em></div>
                         {% endif %}
-                        <div class="gabarit-row gabarit-empty">… ; … ; {{ cle }} ; …</div>
+                        <div class="gabarit-row gabarit-empty">… ; … ; {{ cle }} ; … ; …</div>
                     </div>
                     {% endfor %}
                 </div>
@@ -268,7 +268,7 @@
                             <div class="accordion-body px-0 small">
                                 Fichier <strong>.csv</strong> avec les colonnes :
                                 <code>nom</code>, <code>prenom</code>, <code>categorie</code>,
-                                <code>classe</code>.<br>
+                                <code>classe</code>, <code>email</code>.<br>
                                 Séparateur : <strong>point-virgule</strong> (;) ou virgule (,).<br>
                                 Encodage : UTF-8 (par défaut dans Excel et LibreOffice).<br><br>
                                 <strong>Catégories acceptées :</strong><br>

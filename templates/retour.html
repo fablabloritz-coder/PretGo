@@ -51,8 +51,8 @@
             <div>
                 <div class="pret-name">{{ pret.nom }} {{ pret.prenom }}</div>
                 <span class="cat-badge" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span>
-                {% if pret.classe %}
-                    <span class="text-muted ms-2">{{ pret.classe }}</span>
+                {% if pret.classe_snapshot or pret.classe %}
+                    <span class="text-muted ms-2">{{ pret.classe_snapshot or pret.classe }}</span>
                 {% endif %}
             </div>
         </div>

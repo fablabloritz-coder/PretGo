@@ -68,6 +68,7 @@ def init_db():
             prenom TEXT NOT NULL,
             categorie TEXT NOT NULL,
             classe TEXT DEFAULT '',
+            email TEXT DEFAULT '',
             actif INTEGER DEFAULT 1,
             date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -85,6 +86,8 @@ def init_db():
             duree_pret_heures REAL DEFAULT NULL,
             type_duree TEXT DEFAULT 'defaut',
             date_retour_prevue TEXT DEFAULT NULL,
+            classe_snapshot TEXT DEFAULT '',
+            annee_scolaire TEXT DEFAULT '',
             materiel_id INTEGER DEFAULT NULL,
             date_modification DATETIME DEFAULT NULL,
             FOREIGN KEY (personne_id) REFERENCES personnes(id),
@@ -169,6 +172,8 @@ def init_db():
         ('duree_pret_heures', 'REAL DEFAULT NULL'),
         ('type_duree', "TEXT DEFAULT 'defaut'"),
         ('date_retour_prevue', 'TEXT DEFAULT NULL'),
+        ('classe_snapshot', "TEXT DEFAULT ''"),
+        ('annee_scolaire', "TEXT DEFAULT ''"),
         ('materiel_id', 'INTEGER DEFAULT NULL'),
         ('lieu_id', 'INTEGER DEFAULT NULL'),
     ]:
@@ -180,6 +185,12 @@ def init_db():
     # ── Migration colonne image pour inventaire ──
     try:
         cursor.execute("ALTER TABLE inventaire ADD COLUMN image TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # ── Migration colonne email pour personnes ──
+    try:
+        cursor.execute("ALTER TABLE personnes ADD COLUMN email TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
 

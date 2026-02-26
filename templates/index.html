@@ -101,7 +101,7 @@
                             {% endif %}
                         </td>
                         <td><span class="cat-badge" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span></td>
-                        <td>{{ pret.classe or '—' }}</td>
+                        <td>{{ pret.classe_snapshot or pret.classe or '—' }}</td>
                         <td>{{ pret.descriptif_objets }}</td>
                         <td>{{ pret.date_emprunt | format_date }}</td>
                         <td>{{ pret | retour_theorique }}</td>

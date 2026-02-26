@@ -46,7 +46,7 @@
                         <i class="bi bi-check-circle-fill me-2"></i>
                         <span><strong>{{ pret.nom }} {{ pret.prenom }}</strong>
                             <span class="cat-badge ms-2" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span>
-                            {% if pret.classe %}<small class="text-muted ms-1">({{ pret.classe }})</small>{% endif %}
+                            {% if pret.classe_snapshot or pret.classe %}<small class="text-muted ms-1">({{ pret.classe_snapshot or pret.classe }})</small>{% endif %}
                         </span>
                     </div>
                 </div>

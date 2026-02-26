@@ -65,6 +65,7 @@
                         <th>Prénom</th>
                         <th>Catégorie</th>
                         <th>Classe</th>
+                        <th>Email</th>
                         <th class="text-end" style="width: 220px">Actions</th>
                     </tr>
                 </thead>
@@ -75,6 +76,7 @@
                         <td>{{ p.prenom }}</td>
                         <td><span class="cat-badge" style="{{ p.categorie | style_categorie }}">{{ p.categorie | label_categorie }}</span></td>
                         <td>{{ p.classe or '—' }}</td>
+                        <td>{{ p.email or '—' }}</td>
                         <td class="text-end" style="white-space:nowrap;">
                             <div class="d-inline-flex align-items-center gap-1 justify-content-end">
                                 <a href="{{ url_for('historique_personne', personne_id=p.id) }}"

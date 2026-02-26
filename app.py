@@ -39,6 +39,25 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
+def calculer_annee_scolaire(d=None):
+    """Calcule l'année scolaire pour une date donnée.
+    Septembre–Août = même année scolaire.
+    Ex: 15/10/2025 → '2025-2026', 15/03/2026 → '2025-2026'
+    """
+    if d is None:
+        d = datetime.now()
+    elif isinstance(d, str):
+        try:
+            d = datetime.strptime(d[:10], '%Y-%m-%d')
+        except (ValueError, TypeError):
+            d = datetime.now()
+    if d.month >= 9:  # septembre–décembre
+        return f'{d.year}-{d.year + 1}'
+    else:  # janvier–août
+        return f'{d.year - 1}-{d.year}'
+
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'gestion_prets_materiel_secret_2024')
 
@@ -465,12 +484,18 @@ def nouveau_pret():
             descriptif = ' + '.join(desc for desc, _ in items)
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+            # Snapshot de la classe au moment du prêt
+            pers = conn.execute('SELECT classe FROM personnes WHERE id = ?', (personne_id,)).fetchone()
+            classe_snap = pers['classe'] if pers else ''
+            annee_scol = calculer_annee_scolaire()
+
             cursor = conn.execute(
                 '''INSERT INTO prets (personne_id, descriptif_objets, date_emprunt,
-                   notes, duree_pret_jours, duree_pret_heures, type_duree, date_retour_prevue, lieu_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                   notes, duree_pret_jours, duree_pret_heures, type_duree, date_retour_prevue,
+                   classe_snapshot, annee_scolaire, lieu_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (personne_id, descriptif, now, notes, duree_pret_jours, duree_pret_heures,
-                 duree_type, date_retour_prevue, lieu_id)
+                 duree_type, date_retour_prevue, classe_snap, annee_scol, lieu_id)
             )
             pret_id = cursor.lastrowid
 
@@ -727,14 +752,15 @@ def ajouter_personne():
         prenom = request.form.get('prenom', '').strip().title()
         categorie = request.form.get('categorie', '')
         classe = request.form.get('classe', '').strip()
+        email = request.form.get('email', '').strip().lower()
 
         if not nom or not prenom or not categorie:
             flash('Veuillez remplir tous les champs obligatoires.', 'danger')
         else:
             conn = get_db()
             conn.execute(
-                'INSERT INTO personnes (nom, prenom, categorie, classe) VALUES (?, ?, ?, ?)',
-                (nom, prenom, categorie, classe)
+                'INSERT INTO personnes (nom, prenom, categorie, classe, email) VALUES (?, ?, ?, ?, ?)',
+                (nom, prenom, categorie, classe, email)
             )
             conn.commit()
             personne_id_new = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -759,13 +785,14 @@ def modifier_personne(personne_id):
         prenom = request.form.get('prenom', '').strip().title()
         categorie = request.form.get('categorie', '')
         classe = request.form.get('classe', '').strip()
+        email = request.form.get('email', '').strip().lower()
 
         if not nom or not prenom or not categorie:
             flash('Veuillez remplir tous les champs obligatoires.', 'danger')
         else:
             conn.execute(
-                'UPDATE personnes SET nom=?, prenom=?, categorie=?, classe=? WHERE id=?',
-                (nom, prenom, categorie, classe, personne_id)
+                'UPDATE personnes SET nom=?, prenom=?, categorie=?, classe=?, email=? WHERE id=?',
+                (nom, prenom, categorie, classe, email, personne_id)
             )
             conn.commit()
             # Sauvegarder les champs personnalisés
@@ -878,6 +905,7 @@ def importer_personnes():
                 categorie = (ligne.get('categorie') or ligne.get('Categorie')
                              or ligne.get('Catégorie') or ligne.get('catégorie') or '').strip().lower()
                 classe = (ligne.get('classe') or ligne.get('Classe') or '').strip()
+                email = (ligne.get('email') or ligne.get('Email') or ligne.get('e-mail') or ligne.get('E-mail') or ligne.get('courriel') or ligne.get('Courriel') or '').strip().lower()
 
                 # Ignorer les lignes vides ou les séparateurs de catégorie
                 if not nom or not prenom:
@@ -895,19 +923,26 @@ def importer_personnes():
                     categorie = 'non_enseignant'
                 # Sinon : garder la valeur telle quelle (catégorie personnalisée)
 
-                # Vérifier les doublons (même nom + prénom + catégorie)
-                existant = conn.execute(
-                    'SELECT id FROM personnes WHERE nom = ? AND prenom = ? AND categorie = ?',
-                    (nom, prenom, categorie)
-                ).fetchone()
+                # Vérifier les doublons : par email (prioritaire) ou nom+prénom+catégorie
+                existant = None
+                if email:
+                    existant = conn.execute(
+                        'SELECT id FROM personnes WHERE email = ? AND email != ?',
+                        (email, '')
+                    ).fetchone()
+                if not existant:
+                    existant = conn.execute(
+                        'SELECT id FROM personnes WHERE nom = ? AND prenom = ? AND categorie = ?',
+                        (nom, prenom, categorie)
+                    ).fetchone()
 
                 if existant:
                     ids_importes.add(existant['id'])
                     if mode == 'synchroniser':
-                        # Mettre à jour la classe et réactiver si désactivée
+                        # Mettre à jour la classe, l'email et réactiver si désactivée
                         conn.execute(
-                            'UPDATE personnes SET classe = ?, actif = 1 WHERE id = ?',
-                            (classe, existant['id'])
+                            'UPDATE personnes SET classe = ?, email = ?, actif = 1 WHERE id = ?',
+                            (classe, email, existant['id'])
                         )
                         mis_a_jour += 1
                     else:
@@ -921,17 +956,17 @@ def importer_personnes():
                     ).fetchone()
 
                     if existant_autre and mode == 'synchroniser':
-                        # Mettre à jour catégorie + classe
+                        # Mettre à jour catégorie + classe + email
                         conn.execute(
-                            'UPDATE personnes SET categorie = ?, classe = ?, actif = 1 WHERE id = ?',
-                            (categorie, classe, existant_autre['id'])
+                            'UPDATE personnes SET categorie = ?, classe = ?, email = ?, actif = 1 WHERE id = ?',
+                            (categorie, classe, email, existant_autre['id'])
                         )
                         ids_importes.add(existant_autre['id'])
                         mis_a_jour += 1
                     else:
                         cursor = conn.execute(
-                            'INSERT INTO personnes (nom, prenom, categorie, classe) VALUES (?, ?, ?, ?)',
-                            (nom, prenom, categorie, classe)
+                            'INSERT INTO personnes (nom, prenom, categorie, classe, email) VALUES (?, ?, ?, ?, ?)',
+                            (nom, prenom, categorie, classe, email)
                         )
                         ids_importes.add(cursor.lastrowid)
                         ajoutes += 1
@@ -1005,36 +1040,36 @@ def telecharger_gabarit():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
 
-    writer.writerow(['nom', 'prenom', 'categorie', 'classe'])
+    writer.writerow(['nom', 'prenom', 'categorie', 'classe', 'email'])
 
     # Charger les catégories de personnes depuis la base
     cats = get_categories_personnes()
 
     # Exemples pré-remplis par catégorie (1 exemple + lignes vides)
     exemples = {
-        'eleve':         [('DUPONT', 'Marie', '3A'), ('MARTIN', 'Lucas', '4B')],
-        'enseignant':    [('DUBOIS', 'Sophie', ''), ('LAURENT', 'Philippe', '')],
-        'agent':         [('GARCIA', 'Antonio', '')],
-        'non_enseignant':[('GIRARD', 'Marc', '')],
+        'eleve':         [('DUPONT', 'Marie', '3A', 'marie.dupont@ecole.fr'), ('MARTIN', 'Lucas', '4B', 'lucas.martin@ecole.fr')],
+        'enseignant':    [('DUBOIS', 'Sophie', '', 'sophie.dubois@ecole.fr'), ('LAURENT', 'Philippe', '', 'philippe.laurent@ecole.fr')],
+        'agent':         [('GARCIA', 'Antonio', '', 'antonio.garcia@ecole.fr')],
+        'non_enseignant':[('GIRARD', 'Marc', '', 'marc.girard@ecole.fr')],
     }
 
     for cat in cats:
         cle = cat['cle']
         libelle = cat['libelle'].upper()
-        writer.writerow([f'# ══════ {libelle} ══════', '', '', ''])
+        writer.writerow([f'# ══════ {libelle} ══════', '', '', '', ''])
 
         # Écrire les exemples connus ou un exemple générique
         lignes_exemple = exemples.get(cle, [])
         if lignes_exemple:
-            for nom, prenom, classe in lignes_exemple:
-                writer.writerow([nom, prenom, cle, classe])
+            for nom, prenom, classe, email in lignes_exemple:
+                writer.writerow([nom, prenom, cle, classe, email])
         else:
-            writer.writerow(['NOM', 'Prenom', cle, ''])
+            writer.writerow(['NOM', 'Prenom', cle, '', ''])
 
         # Lignes vides pré-remplies avec la catégorie
         nb_vides = 18 if cle == 'eleve' else 8 if cle == 'enseignant' else 5
         for _ in range(nb_vides):
-            writer.writerow(['', '', cle, ''])
+            writer.writerow(['', '', cle, '', ''])
 
     output.seek(0)
     bom = '\ufeff'
@@ -1055,18 +1090,36 @@ def telecharger_gabarit():
 def historique():
     conn = get_db()
     page = request.args.get('page', 1, type=int)
+    annee = request.args.get('annee', '').strip()
     par_page = 25
     offset = (page - 1) * par_page
 
-    total = conn.execute('SELECT COUNT(*) FROM prets').fetchone()[0]
+    # Récupérer les années scolaires disponibles pour le filtre
+    annees_rows = conn.execute(
+        "SELECT DISTINCT annee_scolaire FROM prets WHERE annee_scolaire != '' ORDER BY annee_scolaire DESC"
+    ).fetchall()
+    annees_disponibles = [r['annee_scolaire'] for r in annees_rows]
 
-    prets = conn.execute('''
-        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
-        FROM prets p
-        JOIN personnes pe ON p.personne_id = pe.id
-        ORDER BY p.date_emprunt DESC
-        LIMIT ? OFFSET ?
-    ''', (par_page, offset)).fetchall()
+    # Requêtes filtrées par année si sélectionnée
+    if annee:
+        total = conn.execute('SELECT COUNT(*) FROM prets WHERE annee_scolaire = ?', (annee,)).fetchone()[0]
+        prets = conn.execute('''
+            SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
+            FROM prets p
+            JOIN personnes pe ON p.personne_id = pe.id
+            WHERE p.annee_scolaire = ?
+            ORDER BY p.date_emprunt DESC
+            LIMIT ? OFFSET ?
+        ''', (annee, par_page, offset)).fetchall()
+    else:
+        total = conn.execute('SELECT COUNT(*) FROM prets').fetchone()[0]
+        prets = conn.execute('''
+            SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie
+            FROM prets p
+            JOIN personnes pe ON p.personne_id = pe.id
+            ORDER BY p.date_emprunt DESC
+            LIMIT ? OFFSET ?
+        ''', (par_page, offset)).fetchall()
 
     conn.close()
 
@@ -1077,7 +1130,9 @@ def historique():
         prets=prets,
         page=page,
         total_pages=total_pages,
-        total=total
+        total=total,
+        annee=annee,
+        annees_disponibles=annees_disponibles
     )
 
 
@@ -1248,16 +1303,16 @@ def export_alertes():
 def export_personnes():
     conn = get_db()
     personnes = conn.execute(
-        'SELECT nom, prenom, categorie, classe FROM personnes WHERE actif = 1 ORDER BY nom, prenom'
+        'SELECT nom, prenom, categorie, classe, email FROM personnes WHERE actif = 1 ORDER BY nom, prenom'
     ).fetchall()
     conn.close()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe'])
+    writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe', 'Email'])
 
     for p in personnes:
-        writer.writerow([p['nom'], p['prenom'], p['categorie'], p['classe']])
+        writer.writerow([p['nom'], p['prenom'], p['categorie'], p['classe'], p['email'] or ''])
 
     return _csv_response(output, 'export_personnes')
 
@@ -1300,15 +1355,15 @@ def api_personnes():
 
     if q:
         personnes = conn.execute('''
-            SELECT id, nom, prenom, categorie, classe
+            SELECT id, nom, prenom, categorie, classe, email
             FROM personnes
-            WHERE actif = 1 AND (nom LIKE ? OR prenom LIKE ? OR classe LIKE ?)
+            WHERE actif = 1 AND (nom LIKE ? OR prenom LIKE ? OR classe LIKE ? OR email LIKE ?)
             ORDER BY nom, prenom
             LIMIT 20
-        ''', (f'%{q}%', f'%{q}%', f'%{q}%')).fetchall()
+        ''', (f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%')).fetchall()
     else:
         personnes = conn.execute('''
-            SELECT id, nom, prenom, categorie, classe
+            SELECT id, nom, prenom, categorie, classe, email
             FROM personnes
             WHERE actif = 1
             ORDER BY nom, prenom
@@ -1717,6 +1772,92 @@ def admin_dashboard():
 
 
 # ============================================================
+#  ADMINISTRATION — ASSISTANT RENTRÉE SCOLAIRE
+# ============================================================
+
+@app.route('/admin/rentree')
+@admin_required
+def admin_rentree():
+    """Assistant de rentrée scolaire : vérifier les prêts, importer la nouvelle liste."""
+    conn = get_db()
+    annee_courante = calculer_annee_scolaire()
+
+    # Prêts non rendus
+    prets_non_rendus = conn.execute('''
+        SELECT p.*, pe.nom, pe.prenom, pe.classe, pe.categorie,
+               p.classe_snapshot, p.annee_scolaire
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        WHERE p.retour_confirme = 0
+        ORDER BY p.date_emprunt ASC
+    ''').fetchall()
+
+    # Statistiques
+    stats = {
+        'personnes_actives': conn.execute('SELECT COUNT(*) FROM personnes WHERE actif = 1').fetchone()[0],
+        'personnes_inactives': conn.execute('SELECT COUNT(*) FROM personnes WHERE actif = 0').fetchone()[0],
+        'prets_non_rendus': len(prets_non_rendus),
+        'prets_total_annee': conn.execute(
+            'SELECT COUNT(*) FROM prets WHERE annee_scolaire = ?', (annee_courante,)
+        ).fetchone()[0],
+    }
+
+    # Années scolaires présentes dans la base
+    annees = conn.execute(
+        "SELECT DISTINCT annee_scolaire FROM prets WHERE annee_scolaire != '' ORDER BY annee_scolaire DESC"
+    ).fetchall()
+    annees_disponibles = [r['annee_scolaire'] for r in annees]
+
+    conn.close()
+    return render_template('admin_rentree.html',
+                           annee_courante=annee_courante,
+                           prets_non_rendus=prets_non_rendus,
+                           stats=stats,
+                           annees_disponibles=annees_disponibles)
+
+
+@app.route('/admin/rentree/retour-groupe', methods=['POST'])
+@admin_required
+def rentree_retour_groupe():
+    """Retourner en masse tous les prêts sélectionnés (assistant rentrée)."""
+    pret_ids = request.form.getlist('pret_ids')
+    if not pret_ids:
+        flash('Aucun prêt sélectionné.', 'warning')
+        return redirect(url_for('admin_rentree'))
+
+    conn = get_db()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    retournes = 0
+    for pid in pret_ids:
+        try:
+            pid_int = int(pid)
+            # Marquer le prêt comme retourné
+            conn.execute(
+                'UPDATE prets SET retour_confirme = 1, date_retour = ? WHERE id = ? AND retour_confirme = 0',
+                (now, pid_int)
+            )
+            # Libérer les matériels associés
+            mats = conn.execute(
+                'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
+                (pid_int,)
+            ).fetchall()
+            for m in mats:
+                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
+            # Rétrocompat ancien champ
+            pret = conn.execute('SELECT materiel_id FROM prets WHERE id = ?', (pid_int,)).fetchone()
+            if pret and pret['materiel_id']:
+                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+            retournes += 1
+        except (ValueError, TypeError):
+            pass
+
+    conn.commit()
+    conn.close()
+    flash(f'{retournes} prêt(s) marqué(s) comme retourné(s).', 'success')
+    return redirect(url_for('admin_rentree'))
+
+
+# ============================================================
 #  ADMINISTRATION — RÉGLAGES
 # ============================================================
 
@@ -1971,15 +2112,46 @@ def admin_generer_demo():
                 break
             nom, prenom = noms_banque[idx_nom]
             classe = random.choice(classes_demo) if a_classe else ''
+            # Email fictif pour ~60 % des personnes (plus réaliste)
+            if random.random() < 0.6:
+                domaines = ['ecole.fr', 'lycee-exemple.fr', 'college-demo.net', 'etablissement.edu']
+                email_base = f'{prenom.lower()}.{nom.lower()}'.replace('é', 'e').replace('è', 'e').replace('ë', 'e').replace('ê', 'e').replace('à', 'a').replace('ç', 'c').replace('ï', 'i').replace('î', 'i').replace('ô', 'o').replace('ü', 'u').replace('û', 'u')
+                email = f'{email_base}@{random.choice(domaines)}'
+            else:
+                email = ''
             try:
                 cursor = conn.execute(
-                    'INSERT INTO personnes (nom, prenom, categorie, classe, actif) VALUES (?, ?, ?, ?, 1)',
-                    (nom, prenom, cle, classe)
+                    'INSERT INTO personnes (nom, prenom, categorie, classe, email, actif) VALUES (?, ?, ?, ?, ?, 1)',
+                    (nom, prenom, cle, classe, email)
                 )
                 personnes_ids.append(cursor.lastrowid)
             except Exception:
                 personnes_ids.append(None)
             idx_nom += 1
+
+    # Quelques personnes inactives (simulation rentrée / départs)
+    personnes_inactives = [
+        ('ANCIEN', 'Paul', cats_personnes_cles[0], '3A', ''),
+        ('PARTIE', 'Lucie', cats_personnes_cles[0], '2nde 3', ''),
+    ]
+    for nom, prenom, cat, classe, email in personnes_inactives:
+        try:
+            conn.execute(
+                'INSERT INTO personnes (nom, prenom, categorie, classe, email, actif) VALUES (?, ?, ?, ?, ?, 0)',
+                (nom, prenom, cat, classe, email)
+            )
+        except Exception:
+            pass
+
+    # ══════════════════════════════════════════════════════════
+    #  2b. LIEUX DE DÉMONSTRATION
+    # ══════════════════════════════════════════════════════════
+    lieux_demo = ['Salle 101', 'Salle 202', 'CDI', 'Atelier', 'Gymnase', 'Salle des profs']
+    for lieu_nom in lieux_demo:
+        try:
+            conn.execute('INSERT INTO lieux (nom, actif) VALUES (?, 1)', (lieu_nom,))
+        except Exception:
+            pass  # déjà existant
 
     # ══════════════════════════════════════════════════════════
     #  3. MATÉRIELS DE DÉMONSTRATION (dynamique)
@@ -2096,6 +2268,12 @@ def admin_generer_demo():
         'TP réseau', 'Sortie scolaire', 'Intervention extérieure', '',
     ]
 
+    # Pré-charger les classes des personnes pour les snapshots
+    classes_personnes = {}
+    for pid in valid_personnes:
+        row = conn.execute('SELECT classe FROM personnes WHERE id = ?', (pid,)).fetchone()
+        classes_personnes[pid] = row['classe'] if row else ''
+
     if valid_personnes and valid_materiels:
         # ── Lieux existants pour affectation aléatoire ──
         lieux_ids = [row['id'] for row in conn.execute(
@@ -2103,8 +2281,8 @@ def admin_generer_demo():
         ).fetchall()]
 
         def random_lieu():
-            """Retourne un lieu_id aléatoire ou None (50 % de chance)."""
-            if lieux_ids and random.random() < 0.5:
+            """Retourne un lieu_id aléatoire ou None (30 % sans lieu)."""
+            if lieux_ids and random.random() < 0.7:
                 return random.choice(lieux_ids)
             return None
 
@@ -2120,14 +2298,20 @@ def admin_generer_demo():
             jours_ago = random.randint(0, 10)
             duree = random.choice([1, 3, 5, 7, 14])
             note = random.choice(notes_prets)
-            date_emprunt = (now - timedelta(days=jours_ago)).strftime('%Y-%m-%d %H:%M:%S')
+            date_emprunt_dt = now - timedelta(days=jours_ago)
+            date_emprunt = date_emprunt_dt.strftime('%Y-%m-%d %H:%M:%S')
+            date_retour_prevue = (date_emprunt_dt + timedelta(days=duree)).strftime('%Y-%m-%d 23:59:00')
+            classe_snap = classes_personnes.get(pid, '')
+            annee_scol = calculer_annee_scolaire(date_emprunt_dt)
             lieu = random_lieu()
 
             cursor = conn.execute(
                 'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                'retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id) '
-                'VALUES (?, ?, ?, 0, ?, ?, ?, ?)',
-                (pid, descriptif, date_emprunt, duree, mid, note, lieu)
+                'retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id, '
+                'classe_snapshot, annee_scolaire, date_retour_prevue, type_duree) '
+                'VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (pid, descriptif, date_emprunt, duree, mid, note, lieu,
+                 classe_snap, annee_scol, date_retour_prevue, 'jours')
             )
             pret_id = cursor.lastrowid
             # Créer l'entrée pret_materiels correspondante
@@ -2149,15 +2333,21 @@ def admin_generer_demo():
             duree = random.choice([3, 7, 14, 30])
             retour_jours_ago = max(1, jours_ago - random.randint(1, duree))
             note = random.choice(notes_prets)
-            date_emprunt = (now - timedelta(days=jours_ago)).strftime('%Y-%m-%d %H:%M:%S')
+            date_emprunt_dt = now - timedelta(days=jours_ago)
+            date_emprunt = date_emprunt_dt.strftime('%Y-%m-%d %H:%M:%S')
             date_retour = (now - timedelta(days=retour_jours_ago)).strftime('%Y-%m-%d %H:%M:%S')
+            date_retour_prevue = (date_emprunt_dt + timedelta(days=duree)).strftime('%Y-%m-%d 23:59:00')
+            classe_snap = classes_personnes.get(pid, '')
+            annee_scol = calculer_annee_scolaire(date_emprunt_dt)
             lieu = random_lieu()
 
             cursor = conn.execute(
                 'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id) '
-                'VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)',
-                (pid, descriptif, date_emprunt, date_retour, duree, mid, note, lieu)
+                'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id, '
+                'classe_snapshot, annee_scolaire, date_retour_prevue, type_duree) '
+                'VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (pid, descriptif, date_emprunt, date_retour, duree, mid, note, lieu,
+                 classe_snap, annee_scol, date_retour_prevue, 'jours')
             )
             pret_id = cursor.lastrowid
             conn.execute(
@@ -2182,15 +2372,21 @@ def admin_generer_demo():
                 duree = random.choice([1, 3, 5, 7, 14])
                 jours_retour = max(base_jours, jours_debut - duree)
                 note = random.choice(notes_prets)
-                date_emprunt = (now - timedelta(days=jours_debut)).strftime('%Y-%m-%d %H:%M:%S')
+                date_emprunt_dt = now - timedelta(days=jours_debut)
+                date_emprunt = date_emprunt_dt.strftime('%Y-%m-%d %H:%M:%S')
                 date_retour = (now - timedelta(days=jours_retour)).strftime('%Y-%m-%d %H:%M:%S')
+                date_retour_prevue = (date_emprunt_dt + timedelta(days=duree)).strftime('%Y-%m-%d 23:59:00')
+                classe_snap = classes_personnes.get(pid, '')
+                annee_scol = calculer_annee_scolaire(date_emprunt_dt)
                 lieu = random_lieu()
 
                 cursor = conn.execute(
                     'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                    'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id) '
-                    'VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)',
-                    (pid, descriptif, date_emprunt, date_retour, duree, mid, note, lieu)
+                    'date_retour, retour_confirme, duree_pret_jours, materiel_id, notes, lieu_id, '
+                    'classe_snapshot, annee_scolaire, date_retour_prevue, type_duree) '
+                    'VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (pid, descriptif, date_emprunt, date_retour, duree, mid, note, lieu,
+                     classe_snap, annee_scol, date_retour_prevue, 'jours')
                 )
                 pret_id = cursor.lastrowid
                 conn.execute(
@@ -2214,15 +2410,23 @@ def admin_generer_demo():
                     desc_principal = f"{libre['marque']} {libre['modele']}"
                     all_desc = [desc_principal] + items_desc
                     descriptif_combine = ' + '.join(all_desc)
-                    date_emprunt = (now - timedelta(days=random.randint(0, 5))).strftime('%Y-%m-%d %H:%M:%S')
+                    jours_ago_multi = random.randint(0, 5)
+                    date_emprunt_dt = now - timedelta(days=jours_ago_multi)
+                    date_emprunt = date_emprunt_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    duree_multi = random.choice([3, 7, 14])
+                    date_retour_prevue = (date_emprunt_dt + timedelta(days=duree_multi)).strftime('%Y-%m-%d 23:59:00')
+                    classe_snap = classes_personnes.get(pid, '')
+                    annee_scol = calculer_annee_scolaire(date_emprunt_dt)
                     lieu = random_lieu()
 
                     cursor = conn.execute(
                         'INSERT INTO prets (personne_id, descriptif_objets, date_emprunt, '
-                        'retour_confirme, duree_pret_jours, notes, lieu_id) '
-                        'VALUES (?, ?, ?, 0, ?, ?, ?)',
-                        (pid, descriptif_combine, date_emprunt, random.choice([3, 7, 14]),
-                         random.choice(notes_prets), lieu)
+                        'retour_confirme, duree_pret_jours, notes, lieu_id, '
+                        'classe_snapshot, annee_scolaire, date_retour_prevue, type_duree) '
+                        'VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)',
+                        (pid, descriptif_combine, date_emprunt, duree_multi,
+                         random.choice(notes_prets), lieu,
+                         classe_snap, annee_scol, date_retour_prevue, 'jours')
                     )
                     pret_id = cursor.lastrowid
                     # Premier item lié à l'inventaire
@@ -2239,11 +2443,13 @@ def admin_generer_demo():
                         )
 
     conn.commit()
-    conn.close()
 
     nb_pers = len([p for p in personnes_ids if p is not None])
     nb_mat = len([m for m in materiels_ids if m is not None])
-    flash(f'Base de démonstration générée : {nb_pers} personnes, {nb_mat} matériels et des prêts de test.', 'success')
+    nb_lieux = conn.execute('SELECT COUNT(*) FROM lieux WHERE actif = 1').fetchone()[0]
+    conn.close()
+    flash(f'Base de démonstration générée : {nb_pers} personnes, {nb_mat} matériels, '
+          f'{nb_lieux} lieux et des prêts de test.', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
@@ -2391,13 +2597,18 @@ def modifier_pret(pret_id):
                     conn.execute("UPDATE inventaire SET etat = 'prete' WHERE id = ?", (mat_id,))
 
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            # Mettre à jour le snapshot de classe si la personne change
+            pers_nouveau = conn.execute('SELECT classe FROM personnes WHERE id = ?', (personne_id,)).fetchone()
+            classe_snap = pers_nouveau['classe'] if pers_nouveau else ''
+
             conn.execute(
                 '''UPDATE prets SET personne_id=?, descriptif_objets=?, notes=?,
                    duree_pret_jours=?, duree_pret_heures=?, type_duree=?, date_retour_prevue=?,
-                   materiel_id=NULL, lieu_id=?, date_modification=?
+                   classe_snapshot=?, materiel_id=NULL, lieu_id=?, date_modification=?
                    WHERE id=?''',
                 (personne_id, descriptif, notes, duree_pret_jours, duree_pret_heures,
-                 duree_type, date_retour_prevue, lieu_id, now, pret_id)
+                 duree_type, date_retour_prevue, classe_snap, lieu_id, now, pret_id)
             )
             conn.commit()
             conn.close()
@@ -3750,12 +3961,45 @@ def sauver_valeurs_champs(entite_id, entite_type, form_data):
 # ============================================================
 
 if __name__ == '__main__':
+    # ── Anti-doublon : tuer toute instance existante sur le port 5000 ──
+    import signal
+    import subprocess
+    import sys
+
+    PORT = 5000
+
+    def kill_existing_instance(port):
+        """Tue automatiquement toute instance Python qui occupe déjà le port."""
+        try:
+            result = subprocess.run(
+                ['netstat', '-ano', '-p', 'TCP'],
+                capture_output=True, text=True,
+                encoding='utf-8', errors='replace', timeout=5
+            )
+            current_pid = os.getpid()
+            for line in result.stdout.splitlines():
+                if f':{port}' in line and 'LISTENING' in line:
+                    parts = line.split()
+                    pid = int(parts[-1])
+                    if pid != current_pid and pid != 0:
+                        try:
+                            os.kill(pid, signal.SIGTERM)
+                            print(f"   [Info] Ancienne instance (PID {pid}) arrêtée.")
+                            import time
+                            time.sleep(0.5)
+                        except (ProcessLookupError, PermissionError):
+                            pass
+        except Exception:
+            pass
+
+    kill_existing_instance(PORT)
+
     print()
     print("=" * 55)
     print("   PRETGO — Gestion de Prêt de Matériel")
     print("   ----------------------------")
     print("   Ouvrez votre navigateur à l'adresse :")
-    print("   http://localhost:5000")
+    print(f"   http://localhost:{PORT}")
     print("=" * 55)
     print()
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=PORT, debug=False)

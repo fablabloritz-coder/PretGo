@@ -50,6 +50,7 @@ function initAutocomplete() {
                             + '<div class="details">'
                             + '<span>' + catLabel + '</span>'
                             + (personne.classe ? ' — ' + personne.classe : '')
+                            + (personne.email ? ' — <i class="bi bi-envelope"></i> ' + personne.email : '')
                             + '</div>';
 
                         item.addEventListener('click', () => {

@@ -350,9 +350,78 @@ print('[18] Pages reset/setup password...')
 get('/admin/reset-password', label='Page reset password')
 
 # ═══════════════════════════════════════════════════════
-#  19. ADMIN : DÉCONNEXION
+#  19. ASSISTANT RENTRÉE SCOLAIRE
 # ═══════════════════════════════════════════════════════
-print('[19] Déconnexion admin...')
+print('[19] Assistant rentrée scolaire...')
+get('/admin/rentree', label='Page rentrée scolaire')
+
+# Vérifier le snapshot de classe et l'année scolaire sur un nouveau prêt
+r = post('/nouveau-pret', {
+    'personne_id': '1',
+    'items_description[]': 'Matériel test rentrée',
+    'items_materiel_id[]': '',
+    'duree_type': 'defaut',
+    'notes': 'Test rentrée',
+}, label='Prêt avec snapshot classe')
+# Vérifier que le filtre par année fonctionne
+get('/historique?annee=2025-2026', label='Historique filtre année')
+
+# Tester le retour groupé
+post('/admin/rentree/retour-groupe', {}, label='Retour groupé (vide)')
+
+# ═══════════════════════════════════════════════════════
+#  20. CHAMP EMAIL SUR LES PERSONNES
+# ═══════════════════════════════════════════════════════
+print('[20] Champ email sur les personnes...')
+
+# Insérer directement via DB pour tester le schema
+with app.app_context():
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO personnes (nom, prenom, categorie, classe, email, actif) VALUES (?, ?, ?, ?, ?, 1)",
+        ('EMAILTEST', 'Alice', 'enseignant', '', 'alice.emailtest@ecole.fr')
+    )
+    conn.commit()
+    p_email = conn.execute(
+        "SELECT id, email FROM personnes WHERE nom='EMAILTEST'"
+    ).fetchone()
+    conn.close()
+
+if p_email:
+    assert p_email['email'] == 'alice.emailtest@ecole.fr', 'Email non sauvegardé correctement'
+    ok += 1
+    print('  Email sauvegardé OK')
+else:
+    errors.append('Personne avec email non trouvée en DB')
+
+# Tester le formulaire d'ajout avec email (POST)
+post('/personnes/ajouter', {
+    'nom': 'EmailPost', 'prenom': 'Bob', 'categorie': 'enseignant',
+    'email': 'bob.post@ecole.fr'
+}, label='Ajouter personne avec email (POST)')
+
+# Vérifier que l'API autocomplete retourne l'email
+r = c.get('/api/personnes?q=EMAILTEST')
+api_data = r.get_json()
+if api_data and len(api_data) > 0 and 'email' in api_data[0]:
+    ok += 1
+    print('  API autocomplete email OK')
+else:
+    errors.append('API autocomplete: champ email absent ou aucun résultat')
+
+# Vérifier le gabarit CSV (contient la colonne email + exemples)
+r = c.get('/telecharger-gabarit')
+gabarit_content = r.data.decode('utf-8-sig')
+if 'email' in gabarit_content and '@ecole.fr' in gabarit_content:
+    ok += 1
+    print('  Gabarit CSV email OK')
+else:
+    errors.append('Gabarit CSV: colonne email absente')
+
+# ═══════════════════════════════════════════════════════
+#  21. ADMIN : DÉCONNEXION
+# ═══════════════════════════════════════════════════════
+print('[21] Déconnexion admin...')
 get('/admin/logout', label='Admin logout')
 
 # ═══════════════════════════════════════════════════════
@@ -365,5 +434,5 @@ print(f'{"=" * 60}')
 for e in errors:
     print(f'  FAIL: {e}')
 if not errors:
-    print('  ✓ Tous les tests passent !')
+    print('  OK - Tous les tests passent !')
 sys.exit(1 if errors else 0)

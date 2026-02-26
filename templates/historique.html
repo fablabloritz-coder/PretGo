@@ -6,7 +6,15 @@
     <h1 class="page-title mb-0">
         <i class="bi bi-clock-history text-primary"></i> Historique des prêts
     </h1>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 align-items-center">
+        {% if annees_disponibles %}
+        <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href=this.value">
+            <option value="{{ url_for('historique') }}" {% if not annee %}selected{% endif %}>Toutes les années</option>
+            {% for a in annees_disponibles %}
+            <option value="{{ url_for('historique', annee=a) }}" {% if annee == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
         <a href="{{ url_for('export_page') }}" class="btn btn-outline-primary">
             <i class="bi bi-download"></i> Exporter en CSV
         </a>
@@ -46,7 +54,7 @@
                         </td>
                         <td><strong>{{ pret.nom }} {{ pret.prenom }}</strong></td>
                         <td><span class="cat-badge" style="{{ pret.categorie | style_categorie }}">{{ pret.categorie | label_categorie }}</span></td>
-                        <td>{{ pret.classe or '—' }}</td>
+                        <td>{{ pret.classe_snapshot or pret.classe or '—' }}</td>
                         <td>{{ pret.descriptif_objets }}</td>
                         <td>{{ pret.date_emprunt | format_date }}</td>
                         <td>{{ pret.date_retour | format_date if pret.date_retour else '—' }}</td>
@@ -64,7 +72,7 @@
     <ul class="pagination pagination-lg">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('historique', page=page-1) }}">
+            <a class="page-link" href="{{ url_for('historique', page=page-1, annee=annee) }}">
                 <i class="bi bi-chevron-left"></i>
             </a>
         </li>
@@ -75,7 +83,7 @@
             <li class="page-item active"><span class="page-link">{{ p }}</span></li>
             {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
             <li class="page-item">
-                <a class="page-link" href="{{ url_for('historique', page=p) }}">{{ p }}</a>
+                <a class="page-link" href="{{ url_for('historique', page=p, annee=annee) }}">{{ p }}</a>
             </li>
             {% elif p == 4 or p == total_pages - 3 %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -84,7 +92,7 @@
 
         {% if page < total_pages %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('historique', page=page+1) }}">
+            <a class="page-link" href="{{ url_for('historique', page=page+1, annee=annee) }}">
                 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
