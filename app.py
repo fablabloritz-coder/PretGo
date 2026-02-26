@@ -9,7 +9,7 @@ Puis ouvrir http://localhost:5000
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash, jsonify, Response, session, g, send_file
+    url_for, flash, jsonify, Response, session, g, send_file, abort
 )
 from database import (
     get_db, init_db, reset_db, get_setting, set_setting,
@@ -23,6 +23,7 @@ import io
 import json
 import os
 import re
+import secrets
 import shutil
 import unicodedata
 import random
@@ -59,7 +60,25 @@ def calculer_annee_scolaire(d=None):
 
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'gestion_prets_materiel_secret_2024')
+
+# ── Clé secrète : générée aléatoirement au premier lancement, persistée ──
+_SECRET_KEY_PATH = os.path.join(DATA_DIR, 'secret_key.txt')
+
+def _load_or_generate_secret_key():
+    """Charge la clé secrète depuis le fichier, ou en génère une nouvelle."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(_SECRET_KEY_PATH):
+        with open(_SECRET_KEY_PATH, 'r', encoding='utf-8') as f:
+            key = f.read().strip()
+            if len(key) >= 32:
+                return key
+    # Générer une clé cryptographiquement sûre
+    key = secrets.token_hex(32)
+    with open(_SECRET_KEY_PATH, 'w', encoding='utf-8') as f:
+        f.write(key)
+    return key
+
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or _load_or_generate_secret_key()
 
 
 # Initialiser la base de données au démarrage avec affichage d'erreur explicite
@@ -74,6 +93,98 @@ with app.app_context():
 
 
 # ============================================================
+#  SÉCURITÉ : CSRF, HEADERS, TEARDOWN DB
+# ============================================================
+
+# ── Protection CSRF automatique ──
+# Un token est généré par session et injecté automatiquement dans tous
+# les formulaires via un snippet JS dans base.html.
+
+CSRF_EXEMPT_ENDPOINTS = {
+    'api_personnes', 'api_inventaire', 'api_scan',
+    'api_liste_images', 'api_upload_image', 'api_supprimer_image',
+    'api_statistiques',
+}
+
+
+def _generate_csrf_token():
+    """Génère ou récupère le token CSRF de la session."""
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(32)
+    return session['_csrf_token']
+
+
+@app.before_request
+def _csrf_protect():
+    """Valide le token CSRF sur toutes les requêtes POST (sauf API exemptées)."""
+    if request.method == 'POST':
+        if app.config.get('TESTING'):
+            return
+        if request.endpoint in CSRF_EXEMPT_ENDPOINTS:
+            return
+        token = request.form.get('_csrf_token') or request.headers.get('X-CSRF-Token')
+        if not token or token != session.get('_csrf_token'):
+            abort(403)
+
+
+@app.context_processor
+def inject_csrf():
+    """Rend le token CSRF disponible dans tous les templates."""
+    return {'csrf_token': _generate_csrf_token}
+
+
+# ── Headers de sécurité ──
+
+@app.after_request
+def _set_security_headers(response):
+    """Ajoute les headers de sécurité à chaque réponse."""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
+
+# ── Teardown : ferme automatiquement la connexion DB si stockée dans g ──
+
+@app.teardown_appcontext
+def _close_db(exception):
+    db = g.pop('_db', None)
+    if db is not None:
+        db.close()
+
+
+def get_app_db():
+    """Obtenir la connexion DB partagée pour la requête courante (via g)."""
+    if '_db' not in g:
+        g._db = get_db()
+    return g._db
+
+
+# ============================================================
+#  UTILITAIRE : Libération des matériels d'un prêt
+# ============================================================
+
+def liberer_materiels_pret(conn, pret_id, pret_row=None):
+    """Libère tous les matériels liés à un prêt (multi-matériel + rétrocompat legacy).
+    
+    Args:
+        conn: connexion DB active
+        pret_id: ID du prêt
+        pret_row: (optionnel) row du prêt déjà chargée (évite un SELECT supplémentaire)
+    """
+    # Multi-matériel (table pret_materiels)
+    mats = conn.execute(
+        'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
+        (pret_id,)
+    ).fetchall()
+    for m in mats:
+        conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
+    # Rétrocompat : ancien champ materiel_id sur la table prets
+    if pret_row is None:
+        pret_row = conn.execute('SELECT materiel_id FROM prets WHERE id = ?', (pret_id,)).fetchone()
+    if pret_row and pret_row['materiel_id']:
+        conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret_row['materiel_id'],))
 #  FILTRES JINJA PERSONNALISÉS
 # ============================================================
 
@@ -308,14 +419,15 @@ def calcul_depassement_heures(date_emprunt_str, duree_heures, duree_jours,
 def utility_processor():
     """Variables disponibles dans tous les templates."""
     nb_alertes = 0
+    conn = None
     try:
-        conn = get_db()
+        conn = get_app_db()
         prets_actifs = conn.execute(
             'SELECT date_emprunt, duree_pret_jours, duree_pret_heures, date_retour_prevue FROM prets WHERE retour_confirme = 0'
         ).fetchall()
-        duree_def = float(get_setting('duree_alerte_defaut', '7'))
-        unite_def = get_setting('duree_alerte_unite', 'jours')
-        heure_fin = get_setting('heure_fin_journee', '17:45')
+        duree_def = float(get_setting('duree_alerte_defaut', '7', conn=conn))
+        unite_def = get_setting('duree_alerte_unite', 'jours', conn=conn)
+        heure_fin = get_setting('heure_fin_journee', '17:45', conn=conn)
         for p in prets_actifs:
             depasse, _ = calcul_depassement_heures(
                 p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
@@ -324,7 +436,6 @@ def utility_processor():
             )
             if depasse:
                 nb_alertes += 1
-        conn.close()
     except Exception:
         pass
 
@@ -334,19 +445,25 @@ def utility_processor():
     # Charger les catégories de personnes pour tous les templates
     # et alimenter le cache g pour les filtres Jinja
     try:
-        cats_list = get_categories_personnes()
-        cats_personnes = {c['cle']: dict(c) for c in cats_list}
+        if conn is None:
+            conn = get_app_db()
+        cats = conn.execute(
+            'SELECT * FROM categories_personnes WHERE actif = 1 ORDER BY ordre, libelle'
+        ).fetchall()
+        cats_personnes = {c['cle']: dict(c) for c in cats}
     except Exception:
         cats_personnes = {}
     g._cats_personnes_cache = cats_personnes
 
-    # Charger le thème personnalisé
+    # Charger le thème personnalisé (toutes les requêtes via la même connexion)
+    if conn is None:
+        conn = get_app_db()
     theme = {
-        'couleur_primaire': get_setting('theme_couleur_primaire', '#1a73e8'),
-        'couleur_navbar': get_setting('theme_couleur_navbar', '#1a56db'),
-        'logo': get_setting('theme_logo', ''),
-        'nom_application': get_setting('theme_nom_application', 'PretGo'),
-        'mode_sombre': get_setting('theme_mode_sombre', '0') == '1',
+        'couleur_primaire': get_setting('theme_couleur_primaire', '#1a73e8', conn=conn),
+        'couleur_navbar': get_setting('theme_couleur_navbar', '#1a56db', conn=conn),
+        'logo': get_setting('theme_logo', '', conn=conn),
+        'nom_application': get_setting('theme_nom_application', 'PretGo', conn=conn),
+        'mode_sombre': get_setting('theme_mode_sombre', '0', conn=conn) == '1',
     }
 
     return {
@@ -354,7 +471,7 @@ def utility_processor():
         'nb_alertes': nb_alertes,
         'is_admin': is_admin,
         'cats_personnes': cats_personnes,
-        'mode_scanner': get_setting('mode_scanner', 'les_deux'),
+        'mode_scanner': get_setting('mode_scanner', 'les_deux', conn=conn),
         'calcul_depassement_heures': calcul_depassement_heures,
         'theme': theme,
     }
@@ -586,16 +703,7 @@ def confirmer_retour(pret_id):
         'UPDATE prets SET date_retour = ?, retour_confirme = 1, signature_retour = ? WHERE id = ?',
         (now, signature, pret_id)
     )
-    # Libérer les matériels liés via pret_materiels (multi-matériel)
-    mats = conn.execute(
-        'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
-        (pret_id,)
-    ).fetchall()
-    for m in mats:
-        conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
-    # Rétrocompat : ancien champ materiel_id sur prets
-    if pret and pret['materiel_id']:
-        conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+    liberer_materiels_pret(conn, pret_id, pret_row=pret)
     conn.commit()
     conn.close()
     flash('Retour confirmé avec succès !', 'success')
@@ -626,16 +734,7 @@ def retour_masse():
             'UPDATE prets SET date_retour = ?, retour_confirme = 1, signature_retour = ? WHERE id = ?',
             (now, '', pid)
         )
-        # Libérer matériels liés (multi-matériel)
-        mats = conn.execute(
-            'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
-            (pid,)
-        ).fetchall()
-        for m in mats:
-            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
-        # Rétrocompat : ancien champ materiel_id
-        if pret['materiel_id']:
-            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+        liberer_materiels_pret(conn, pid, pret_row=pret)
         nb += 1
     conn.commit()
     conn.close()
@@ -1836,17 +1935,7 @@ def rentree_retour_groupe():
                 'UPDATE prets SET retour_confirme = 1, date_retour = ? WHERE id = ? AND retour_confirme = 0',
                 (now, pid_int)
             )
-            # Libérer les matériels associés
-            mats = conn.execute(
-                'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
-                (pid_int,)
-            ).fetchall()
-            for m in mats:
-                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
-            # Rétrocompat ancien champ
-            pret = conn.execute('SELECT materiel_id FROM prets WHERE id = ?', (pid_int,)).fetchone()
-            if pret and pret['materiel_id']:
-                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+            liberer_materiels_pret(conn, pid_int)
             retournes += 1
         except (ValueError, TypeError):
             pass
@@ -2575,16 +2664,7 @@ def modifier_pret(pret_id):
         else:
             descriptif = ' + '.join(desc for desc, _ in items)
 
-            # Libérer les anciens matériels liés (pret_materiels)
-            anciens_mats = conn.execute(
-                'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
-                (pret_id,)
-            ).fetchall()
-            for am in anciens_mats:
-                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (am['materiel_id'],))
-            # Rétrocompat ancien champ
-            if pret['materiel_id']:
-                conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+            liberer_materiels_pret(conn, pret_id, pret_row=pret)
 
             # Supprimer anciens items et recréer
             conn.execute('DELETE FROM pret_materiels WHERE pret_id = ?', (pret_id,))
@@ -2660,16 +2740,7 @@ def supprimer_pret(pret_id):
     conn = get_db()
     pret = conn.execute('SELECT materiel_id, retour_confirme FROM prets WHERE id = ?', (pret_id,)).fetchone()
     if pret and not pret['retour_confirme']:
-        # Libérer multi-matériels
-        mats = conn.execute(
-            'SELECT materiel_id FROM pret_materiels WHERE pret_id = ? AND materiel_id IS NOT NULL',
-            (pret_id,)
-        ).fetchall()
-        for m in mats:
-            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (m['materiel_id'],))
-        # Rétrocompat ancien champ
-        if pret['materiel_id']:
-            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE id = ?", (pret['materiel_id'],))
+        liberer_materiels_pret(conn, pret_id, pret_row=pret)
     conn.execute('DELETE FROM pret_materiels WHERE pret_id = ?', (pret_id,))
     conn.execute('DELETE FROM prets WHERE id = ?', (pret_id,))
     conn.commit()

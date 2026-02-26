@@ -22,6 +22,7 @@ def get_db():
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 
@@ -355,17 +356,25 @@ BACKUP_DIR = os.path.join(DATA_DIR, 'sauvegardes')
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
 
-def get_setting(cle, default=None):
-    """Récupérer un paramètre de la base."""
-    conn = get_db()
+def get_setting(cle, default=None, conn=None):
+    """Récupérer un paramètre de la base.
+    Si une connexion est passée, elle est réutilisée (pas de close)."""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
     row = conn.execute('SELECT valeur FROM parametres WHERE cle = ?', (cle,)).fetchone()
-    conn.close()
+    if own_conn:
+        conn.close()
     return row['valeur'] if row else default
 
 
-def set_setting(cle, valeur):
-    """Modifier ou créer un paramètre."""
-    conn = get_db()
+def set_setting(cle, valeur, conn=None):
+    """Modifier ou créer un paramètre.
+    Si une connexion est passée, elle est réutilisée (pas de commit/close)."""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
     conn.execute('INSERT OR REPLACE INTO parametres (cle, valeur) VALUES (?, ?)', (cle, str(valeur)))
-    conn.commit()
-    conn.close()
+    if own_conn:
+        conn.commit()
+        conn.close()

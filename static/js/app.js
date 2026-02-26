@@ -3,6 +3,19 @@
 // ============================================================
 
 // ============================================================
+//  UTILITAIRE : Échappement HTML (anti-XSS)
+// ============================================================
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// ============================================================
 //  AUTOCOMPLÉTION POUR LA RECHERCHE DE PERSONNES
 // ============================================================
 
@@ -46,11 +59,11 @@ function initAutocomplete() {
                         const catLabel = personne.categorie_label || personne.categorie || '';
 
                         item.innerHTML =
-                            '<div class="name">' + personne.nom + ' ' + personne.prenom + '</div>'
+                            '<div class="name">' + escapeHtml(personne.nom) + ' ' + escapeHtml(personne.prenom) + '</div>'
                             + '<div class="details">'
-                            + '<span>' + catLabel + '</span>'
-                            + (personne.classe ? ' — ' + personne.classe : '')
-                            + (personne.email ? ' — <i class="bi bi-envelope"></i> ' + personne.email : '')
+                            + '<span>' + escapeHtml(catLabel) + '</span>'
+                            + (personne.classe ? ' — ' + escapeHtml(personne.classe) : '')
+                            + (personne.email ? ' — <i class="bi bi-envelope"></i> ' + escapeHtml(personne.email) : '')
                             + '</div>';
 
                         item.addEventListener('click', () => {
@@ -61,9 +74,9 @@ function initAutocomplete() {
                             selectedDiv.innerHTML =
                                 '<div class="alert alert-info d-flex justify-content-between align-items-center mb-0">'
                                 + '<div>'
-                                + '<strong>' + personne.nom + ' ' + personne.prenom + '</strong> '
-                                + '<span class="ms-2">' + catLabel + '</span>'
-                                + (personne.classe ? '<span class="ms-2">' + personne.classe + '</span>' : '')
+                                + '<strong>' + escapeHtml(personne.nom) + ' ' + escapeHtml(personne.prenom) + '</strong> '
+                                + '<span class="ms-2">' + escapeHtml(catLabel) + '</span>'
+                                + (personne.classe ? '<span class="ms-2">' + escapeHtml(personne.classe) + '</span>' : '')
                                 + '</div>'
                                 + '<button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetPersonne()">'
                                 + '<i class="bi bi-x-lg"></i> Changer'
