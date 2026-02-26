@@ -93,8 +93,30 @@ with app.app_context():
 
 
 # ============================================================
-#  SÉCURITÉ : CSRF, HEADERS, TEARDOWN DB
+#  SÉCURITÉ : RATE LIMITER, CSRF, HEADERS, TEARDOWN DB
 # ============================================================
+
+# ── Rate limiter en mémoire (anti brute-force, zéro dépendance) ──
+import time as _time
+from collections import defaultdict as _defaultdict
+
+class _RateLimiter:
+    """Limiteur de requêtes en mémoire, par IP."""
+    def __init__(self):
+        self._hits = _defaultdict(list)   # ip -> [timestamps]
+
+    def is_limited(self, ip, max_hits=5, window=60):
+        """True si l'IP a dépassé max_hits dans les <window> dernières secondes."""
+        now = _time.time()
+        hits = self._hits[ip]
+        # Purger les entrées trop anciennes
+        self._hits[ip] = [t for t in hits if now - t < window]
+        if len(self._hits[ip]) >= max_hits:
+            return True
+        self._hits[ip].append(now)
+        return False
+
+_rate_limiter = _RateLimiter()
 
 # ── Protection CSRF automatique ──
 # Un token est généré par session et injecté automatiquement dans tous
@@ -787,28 +809,45 @@ def personnes():
     conn = get_db()
     filtre = request.args.get('categorie', 'tous')
     recherche = request.args.get('q', '').strip()
+    page = request.args.get('page', 1, type=int)
+    par_page = 50
 
     query = 'SELECT * FROM personnes WHERE actif = 1'
+    count_query = 'SELECT COUNT(*) FROM personnes WHERE actif = 1'
     params = []
+    count_params = []
 
     if filtre != 'tous':
         if filtre == '_autres':
-            # Catégories non répertoriées
             cats_connues = get_categories_personnes()
             cles = [c['cle'] for c in cats_connues]
             if cles:
                 placeholders = ','.join('?' * len(cles))
-                query += f' AND categorie NOT IN ({placeholders})'
+                clause = f' AND categorie NOT IN ({placeholders})'
+                query += clause
+                count_query += clause
                 params.extend(cles)
+                count_params.extend(cles)
         else:
             query += ' AND categorie = ?'
+            count_query += ' AND categorie = ?'
             params.append(filtre)
+            count_params.append(filtre)
 
     if recherche:
-        query += ' AND (nom LIKE ? OR prenom LIKE ? OR classe LIKE ?)'
+        like_clause = ' AND (nom LIKE ? OR prenom LIKE ? OR classe LIKE ?)'
+        query += like_clause
+        count_query += like_clause
         params.extend([f'%{recherche}%', f'%{recherche}%', f'%{recherche}%'])
+        count_params.extend([f'%{recherche}%', f'%{recherche}%', f'%{recherche}%'])
 
-    query += ' ORDER BY categorie, nom, prenom'
+    total = conn.execute(count_query, count_params).fetchone()[0]
+    total_pages = max(1, (total + par_page - 1) // par_page)
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * par_page
+
+    query += ' ORDER BY categorie, nom, prenom LIMIT ? OFFSET ?'
+    params.extend([par_page, offset])
     personnes_list = conn.execute(query, params).fetchall()
 
     # Comptages par catégorie (dynamique depuis la base)
@@ -818,7 +857,6 @@ def personnes():
         comptages[cat['cle']] = conn.execute(
             'SELECT COUNT(*) FROM personnes WHERE actif = 1 AND categorie = ?', (cat['cle'],)
         ).fetchone()[0]
-    # Comptage aussi des catégories non répertoriées
     cles_connues = [c['cle'] for c in cats]
     if cles_connues:
         placeholders = ','.join('?' * len(cles_connues))
@@ -839,7 +877,10 @@ def personnes():
         filtre=filtre,
         recherche=recherche,
         comptages=comptages,
-        cats_list=cats
+        cats_list=cats,
+        page=page,
+        total_pages=total_pages,
+        total=total
     )
 
 
@@ -1751,6 +1792,12 @@ def admin_login():
         action = request.form.get('action', 'login')
 
         if action == 'login':
+            # Rate limiting : max 5 tentatives / 60 s
+            client_ip = request.remote_addr or '0.0.0.0'
+            if _rate_limiter.is_limited(client_ip, max_hits=5, window=60):
+                flash('Trop de tentatives. Réessayez dans une minute.', 'danger')
+                return render_template('admin_login.html',
+                                       password_changed=get_setting('password_changed', '0'))
             password = request.form.get('password', '')
             stored_hash = get_setting('admin_password')
             if stored_hash and verify_password(password, stored_hash):
@@ -2807,26 +2854,48 @@ def api_supprimer_image():
 #  INVENTAIRE MATÉRIEL
 # ============================================================
 
-def _query_inventaire(filtre_type='tous', recherche='', etat_only=None):
-    """Helper : interroge l'inventaire avec filtres. Renvoie (items, types, comptages, conn)."""
+def _query_inventaire(filtre_type='tous', recherche='', etat_only=None, page=None, par_page=50):
+    """Helper : interroge l'inventaire avec filtres et pagination optionnelle.
+    Renvoie (items, types, comptages) ou (items, types, comptages, total, total_pages) si page est fourni."""
     conn = get_db()
     query = 'SELECT * FROM inventaire WHERE actif = 1'
+    count_query = 'SELECT COUNT(*) FROM inventaire WHERE actif = 1'
     params = []
+    count_params = []
 
     if etat_only:
         query += ' AND etat = ?'
+        count_query += ' AND etat = ?'
         params.append(etat_only)
+        count_params.append(etat_only)
 
     if filtre_type != 'tous':
         query += ' AND type_materiel = ?'
+        count_query += ' AND type_materiel = ?'
         params.append(filtre_type)
+        count_params.append(filtre_type)
 
     if recherche:
-        query += ' AND (numero_inventaire LIKE ? OR marque LIKE ? OR modele LIKE ? OR numero_serie LIKE ?)'
+        like_clause = ' AND (numero_inventaire LIKE ? OR marque LIKE ? OR modele LIKE ? OR numero_serie LIKE ?)'
+        query += like_clause
+        count_query += like_clause
         params.extend([f'%{recherche}%'] * 4)
+        count_params.extend([f'%{recherche}%'] * 4)
 
     query += ' ORDER BY type_materiel, numero_inventaire'
-    items = conn.execute(query, params).fetchall()
+
+    if page is not None:
+        total = conn.execute(count_query, count_params).fetchone()[0]
+        total_pages = max(1, (total + par_page - 1) // par_page)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * par_page
+        query += ' LIMIT ? OFFSET ?'
+        params.extend([par_page, offset])
+        items = conn.execute(query, params).fetchall()
+    else:
+        items = conn.execute(query, params).fetchall()
+        total = len(items)
+        total_pages = 1
 
     types = conn.execute(
         'SELECT DISTINCT type_materiel FROM inventaire WHERE actif = 1 ORDER BY type_materiel'
@@ -2840,6 +2909,8 @@ def _query_inventaire(filtre_type='tous', recherche='', etat_only=None):
         ).fetchone()[0]
 
     conn.close()
+    if page is not None:
+        return items, types, comptages, total, total_pages, page
     return items, types, comptages
 
 
@@ -2848,9 +2919,14 @@ def _query_inventaire(filtre_type='tous', recherche='', etat_only=None):
 def inventaire():
     filtre_type = request.args.get('type', 'tous')
     recherche = request.args.get('q', '').strip()
-    items, types, comptages = _query_inventaire(filtre_type, recherche)
+    page = request.args.get('page', 1, type=int)
+    par_page = 50
+    items, types, comptages, total, total_pages, page = _query_inventaire(
+        filtre_type, recherche, page=page, par_page=par_page
+    )
     return render_template('inventaire.html', items=items, types=types,
-                           filtre_type=filtre_type, recherche=recherche, comptages=comptages)
+                           filtre_type=filtre_type, recherche=recherche, comptages=comptages,
+                           page=page, total_pages=total_pages, total=total)
 
 
 @app.route('/inventaire/ajouter', methods=['GET', 'POST'])
