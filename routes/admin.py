@@ -710,22 +710,8 @@ def admin_generer_demo():
         nom_cat = cat['nom']
         prefixe = (cat['prefixe_inventaire'] or 'INV').upper()
 
-        # Trouver le prochain numéro d'inventaire pour ce préfixe
-        last = conn.execute(
-            "SELECT numero_inventaire FROM inventaire "
-            "WHERE numero_inventaire LIKE ? ORDER BY id DESC LIMIT 1",
-            (f'{prefixe}-%',)
-        ).fetchone()
-        if last:
-            try:
-                next_num = int(last['numero_inventaire'].split('-', 1)[1]) + 1
-            except (IndexError, ValueError):
-                next_num = conn.execute(
-                    "SELECT COUNT(*) FROM inventaire WHERE numero_inventaire LIKE ?",
-                    (f'{prefixe}-%',)
-                ).fetchone()[0] + 1
-        else:
-            next_num = 1
+        # Trouver le prochain numéro d'inventaire pour ce préfixe (réutilise les gaps)
+        from utils import get_next_inventory_number
 
         # Choisir les exemples adaptés à cette catégorie
         nom_lower = nom_cat.lower().strip()
@@ -737,7 +723,7 @@ def admin_generer_demo():
 
         sn_counter = 1
         for marque, modele, os_val in items_choisis:
-            numero_inv = f'{prefixe}-{next_num:05d}'
+            numero_inv = get_next_inventory_number(conn, prefixe)
             numero_serie = f'SN-{prefixe}-{sn_counter:03d}'
             try:
                 cursor = conn.execute(
@@ -751,7 +737,6 @@ def admin_generer_demo():
                 materiels_info.append((mid, nom_cat, marque, modele))
             except Exception:
                 materiels_ids.append(None)
-            next_num += 1
             sn_counter += 1
 
     # ══════════════════════════════════════════════════════════

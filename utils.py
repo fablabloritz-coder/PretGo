@@ -94,6 +94,55 @@ def get_app_db():
 
 
 # ============================================================
+#  GÉNÉRATION DE NUMÉRO D'INVENTAIRE
+# ============================================================
+
+def get_next_inventory_number(conn, prefix):
+    """
+    Récupère le prochain numéro d'inventaire disponible pour un préfixe.
+    Réutilise les numéros "libérés" (les plus bas manquants).
+    Par ex: si PC-00001 et PC-00003 existent, retourne PC-00002.
+    Si 1,2,3 existent, retourne 4.
+    
+    Args:
+        conn: Connexion de base de données
+        prefix: Préfixe (ex: 'PC', 'INV')
+    Returns:
+        Numéro formaté (ex: 'PC-00002')
+    """
+    prefix = prefix.upper()
+    
+    # Récupérer tous les numéros existants du préfixe
+    rows = conn.execute(
+        "SELECT numero_inventaire FROM inventaire "
+        "WHERE numero_inventaire LIKE ? "
+        "ORDER BY CAST(SUBSTR(numero_inventaire, ?, 5) AS INTEGER) ASC",
+        (f'{prefix}-%', len(prefix) + 2)
+    ).fetchall()
+    
+    if not rows:
+        # Aucun numéro existant, commencer à 1
+        return f'{prefix}-00001'
+    
+    # Extraire les numéros et trouver le premier gap
+    used_numbers = set()
+    for row in rows:
+        try:
+            num_str = row['numero_inventaire'].split('-', 1)[1]
+            num = int(num_str)
+            used_numbers.add(num)
+        except (IndexError, ValueError):
+            pass
+    
+    # Trouver le plus petit numéro manquant (ou suivant)
+    next_num = 1
+    while next_num in used_numbers:
+        next_num += 1
+    
+    return f'{prefix}-{next_num:05d}'
+
+
+# ============================================================
 #  LIBÉRATION DES MATÉRIELS D'UN PRÊT
 # ============================================================
 

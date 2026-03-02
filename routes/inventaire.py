@@ -171,24 +171,9 @@ def ajouter_materiel():
                 ).fetchone()
                 prefix = (cat_row['prefixe_inventaire'] if cat_row and cat_row['prefixe_inventaire'] else 'INV').upper()
 
-                # Trouver le prochain numéro pour ce préfixe
-                last = conn.execute(
-                    "SELECT numero_inventaire FROM inventaire "
-                    "WHERE numero_inventaire LIKE ? "
-                    "ORDER BY id DESC LIMIT 1",
-                    (f'{prefix}-%',)
-                ).fetchone()
-                if last:
-                    try:
-                        num = int(last['numero_inventaire'].split('-', 1)[1]) + 1
-                    except (IndexError, ValueError):
-                        num = conn.execute(
-                            "SELECT COUNT(*) FROM inventaire WHERE numero_inventaire LIKE ?",
-                            (f'{prefix}-%',)
-                        ).fetchone()[0] + 1
-                else:
-                    num = 1
-                numero_inv = f'{prefix}-{num:05d}'
+                # Trouver le prochain numéro disponible (réutilise les numéros supprimés)
+                from utils import get_next_inventory_number
+                numero_inv = get_next_inventory_number(conn, prefix)
                 form_data['numero_inventaire'] = numero_inv
 
             try:
