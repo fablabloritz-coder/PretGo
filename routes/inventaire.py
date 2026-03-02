@@ -102,9 +102,38 @@ def inventaire():
     items, types, comptages, total, total_pages, page = query_inventaire(
         filtre_type, recherche, page=page, par_page=par_page
     )
-    return render_template('inventaire.html', items=items, types=types,
+
+    # Colonnes dynamiques depuis les champs personnalisés "matériel"
+    custom_columns = [dict(c) for c in get_champs_personnalises('materiel')]
+    items_list = [dict(i) for i in items]
+    if items_list and custom_columns:
+        conn = get_app_db()
+        ids = [i['id'] for i in items_list]
+        placeholders = ','.join(['?'] * len(ids))
+        values_rows = conn.execute(f'''
+            SELECT vcp.entite_id, cp.nom_champ, vcp.valeur
+            FROM valeurs_champs_personnalises vcp
+            JOIN champs_personnalises cp ON cp.id = vcp.champ_id
+            WHERE cp.entite = 'materiel' AND cp.actif = 1 AND vcp.entite_id IN ({placeholders})
+        ''', ids).fetchall()
+
+        values_map = {}
+        for row in values_rows:
+            entite_id = row['entite_id']
+            if entite_id not in values_map:
+                values_map[entite_id] = {}
+            values_map[entite_id][row['nom_champ']] = row['valeur']
+
+        for item in items_list:
+            item['custom_values'] = values_map.get(item['id'], {})
+    else:
+        for item in items_list:
+            item['custom_values'] = {}
+
+    return render_template('inventaire.html', items=items_list, types=types,
                            filtre_type=filtre_type, recherche=recherche, comptages=comptages,
-                           page=page, total_pages=total_pages, total=total)
+                           page=page, total_pages=total_pages, total=total,
+                           custom_columns=custom_columns)
 
 
 
@@ -192,12 +221,17 @@ def modifier_materiel(mat_id):
     conn = get_app_db()
 
     if request.method == 'POST':
+        materiel_existant = conn.execute('SELECT * FROM inventaire WHERE id = ?', (mat_id,)).fetchone()
+        if not materiel_existant:
+            flash('Matériel non trouvé.', 'danger')
+            return redirect(url_for('inventaire.inventaire'))
+
         type_mat = request.form.get('type_materiel', '').strip()
         marque = request.form.get('marque', '').strip()
         modele = request.form.get('modele', '').strip()
         numero_serie = request.form.get('numero_serie', '').strip()
         numero_inv = request.form.get('numero_inventaire', '').strip()
-        os_val = request.form.get('systeme_exploitation', '').strip()
+        os_val = request.form.get('systeme_exploitation', materiel_existant['systeme_exploitation'] or '').strip()
         etat = request.form.get('etat', 'disponible')
         notes = request.form.get('notes', '').strip()
         image = request.form.get('image', '').strip()

@@ -77,7 +77,9 @@
                 <th data-sort="text">Type</th>
                 <th data-sort="text">Marque / Modèle</th>
                 <th data-sort="text">N° série</th>
-                <th data-sort="text">OS</th>
+                {% for champ in custom_columns %}
+                <th data-sort="text">{{ champ.label }}</th>
+                {% endfor %}
                 <th data-sort="text">État</th>
                 <th class="text-end">Actions</th>
             </tr>
@@ -123,13 +125,16 @@
                         <span class="text-muted">—</span>
                     {% endif %}
                 </td>
+                {% for champ in custom_columns %}
                 <td>
-                    {% if item.systeme_exploitation %}
-                        {{ item.systeme_exploitation }}
+                    {% set valeur_custom = item.custom_values.get(champ.nom_champ, '') %}
+                    {% if valeur_custom %}
+                        {{ valeur_custom }}
                     {% else %}
                         <span class="text-muted">—</span>
                     {% endif %}
                 </td>
+                {% endfor %}
                 <td>
                     {% if item.etat == 'disponible' %}
                         <span class="badge bg-success">Disponible</span>

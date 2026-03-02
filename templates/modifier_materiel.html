@@ -56,20 +56,6 @@
                            value="{{ materiel.numero_serie or '' }}">
                 </div>
 
-                <!-- Système d'exploitation -->
-                <div class="col-12 col-md-6 zone-type-detail" id="zone_os"
-                     style="{{ '' if materiel.type_materiel == 'Ordinateur' else 'display:none' }}">
-                    <label class="form-label fw-bold">Système d'exploitation</label>
-                    <select name="systeme_exploitation" class="form-select">
-                        <option value="">— Non renseigné —</option>
-                        <option value="Windows 11" {{ 'selected' if materiel.systeme_exploitation == 'Windows 11' }}>Windows 11</option>
-                        <option value="Windows 10" {{ 'selected' if materiel.systeme_exploitation == 'Windows 10' }}>Windows 10</option>
-                        <option value="macOS" {{ 'selected' if materiel.systeme_exploitation == 'macOS' }}>macOS</option>
-                        <option value="Linux" {{ 'selected' if materiel.systeme_exploitation == 'Linux' }}>Linux</option>
-                        <option value="Chrome OS" {{ 'selected' if materiel.systeme_exploitation == 'Chrome OS' }}>Chrome OS</option>
-                    </select>
-                </div>
-
                 <!-- État -->
                 <div class="col-12 col-md-6">
                     <label class="form-label fw-bold">État</label>
@@ -131,23 +117,23 @@
                 <div class="col-12 col-md-6">
                     <label class="form-label fw-bold">{{ champ.label }}{% if champ.obligatoire %} <span class="text-danger">*</span>{% endif %}</label>
                     {% if champ.type_champ == 'texte' %}
-                    <input type="text" name="custom_{{ champ.id }}" class="form-control" value="{{ valeurs_custom.get(champ.id, '') }}" {{ 'required' if champ.obligatoire }}>
+                    <input type="text" name="custom_{{ champ.nom_champ }}" class="form-control" value="{{ valeurs_custom.get(champ.nom_champ, '') }}" {{ 'required' if champ.obligatoire }}>
                     {% elif champ.type_champ == 'texte_long' %}
-                    <textarea name="custom_{{ champ.id }}" class="form-control" rows="2" {{ 'required' if champ.obligatoire }}>{{ valeurs_custom.get(champ.id, '') }}</textarea>
+                    <textarea name="custom_{{ champ.nom_champ }}" class="form-control" rows="2" {{ 'required' if champ.obligatoire }}>{{ valeurs_custom.get(champ.nom_champ, '') }}</textarea>
                     {% elif champ.type_champ == 'nombre' %}
-                    <input type="number" name="custom_{{ champ.id }}" class="form-control" step="any" value="{{ valeurs_custom.get(champ.id, '') }}" {{ 'required' if champ.obligatoire }}>
+                    <input type="number" name="custom_{{ champ.nom_champ }}" class="form-control" step="any" value="{{ valeurs_custom.get(champ.nom_champ, '') }}" {{ 'required' if champ.obligatoire }}>
                     {% elif champ.type_champ == 'date' %}
-                    <input type="date" name="custom_{{ champ.id }}" class="form-control" value="{{ valeurs_custom.get(champ.id, '') }}" {{ 'required' if champ.obligatoire }}>
+                    <input type="date" name="custom_{{ champ.nom_champ }}" class="form-control" value="{{ valeurs_custom.get(champ.nom_champ, '') }}" {{ 'required' if champ.obligatoire }}>
                     {% elif champ.type_champ == 'choix' %}
-                    <select name="custom_{{ champ.id }}" class="form-select" {{ 'required' if champ.obligatoire }}>
+                    <select name="custom_{{ champ.nom_champ }}" class="form-select" {{ 'required' if champ.obligatoire }}>
                         <option value="">— Choisir —</option>
                         {% for opt in champ.options.split(',') %}
-                        <option value="{{ opt.strip() }}" {{ 'selected' if valeurs_custom.get(champ.id, '') == opt.strip() }}>{{ opt.strip() }}</option>
+                        <option value="{{ opt.strip() }}" {{ 'selected' if valeurs_custom.get(champ.nom_champ, '') == opt.strip() }}>{{ opt.strip() }}</option>
                         {% endfor %}
                     </select>
                     {% elif champ.type_champ == 'case_a_cocher' %}
                     <div class="form-check mt-1">
-                        <input type="checkbox" name="custom_{{ champ.id }}" class="form-check-input" value="oui" {{ 'checked' if valeurs_custom.get(champ.id, '') == 'oui' }}>
+                        <input type="checkbox" name="custom_{{ champ.nom_champ }}" class="form-check-input" value="oui" {{ 'checked' if valeurs_custom.get(champ.nom_champ, '') == 'oui' }}>
                         <label class="form-check-label">{{ champ.label }}</label>
                     </div>
                     {% endif %}
@@ -202,6 +188,7 @@
 const UPLOAD_URL = '{{ url_for("api.api_upload_image") }}';
 const LIST_URL = '{{ url_for("api.api_liste_images") }}';
 const BASE_IMG_URL = '{{ url_for("static", filename="uploads/materiel/") }}';
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
 function selectionnerImage(filename) {
     document.getElementById('image_selectionnee').value = filename;
@@ -262,15 +249,25 @@ function uploadImage(input) {
     status.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split"></i> Upload en cours...</span>';
     const fd = new FormData();
     fd.append('image', input.files[0]);
-    fetch(UPLOAD_URL, { method: 'POST', body: fd })
-        .then(r => r.json())
+    fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': CSRF_TOKEN },
+        body: fd
+    })
+        .then(async (r) => {
+            const contentType = r.headers.get('content-type') || '';
+            const data = contentType.includes('application/json') ? await r.json() : { error: 'Réponse serveur invalide.' };
+            if (!r.ok || data.error) {
+                throw new Error(data.error || ('Erreur HTTP ' + r.status));
+            }
+            return data;
+        })
         .then(data => {
-            if (data.error) { status.innerHTML = `<span class="text-danger">${data.error}</span>`; return; }
             status.innerHTML = '<span class="text-success"><i class="bi bi-check-lg"></i> Image uploadée !</span>';
             selectionnerImage(data.filename);
             setTimeout(() => status.innerHTML = '', 3000);
         })
-        .catch(() => { status.innerHTML = '<span class="text-danger">Erreur lors de l\'upload</span>'; });
+        .catch((e) => { status.innerHTML = `<span class="text-danger">${e.message}</span>`; });
     input.value = '';
 }
 
@@ -278,8 +275,19 @@ function uploadImageGalerie(input) {
     if (!input.files[0]) return;
     const fd = new FormData();
     fd.append('image', input.files[0]);
-    fetch(UPLOAD_URL, { method: 'POST', body: fd })
-        .then(r => r.json())
+    fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': CSRF_TOKEN },
+        body: fd
+    })
+        .then(async (r) => {
+            const contentType = r.headers.get('content-type') || '';
+            const data = contentType.includes('application/json') ? await r.json() : { error: 'Réponse serveur invalide.' };
+            if (!r.ok || data.error) {
+                throw new Error(data.error || ('Erreur HTTP ' + r.status));
+            }
+            return data;
+        })
         .then(data => {
             if (!data.error) ouvrirGalerie();
         });
@@ -287,16 +295,9 @@ function uploadImageGalerie(input) {
 }
 
 function toggleTypeFields() {
-    const type = document.getElementById('type_materiel').value.toLowerCase();
-    const zoneOS = document.getElementById('zone_os');
-    const zoneSerie = document.getElementById('zone_numero_serie');
-
-    // OS uniquement pour les types contenant "ordinateur"
-    zoneOS.style.display = type.includes('ordinateur') ? '' : 'none';
-
-    // N° série pour équipements électroniques
-    const typesAvecSerie = ['ordinateur', 'vidéoprojecteur', 'projecteur', 'tablette', 'imprimante'];
-    zoneSerie.style.display = typesAvecSerie.some(t => type.includes(t)) ? '' : 'none';
+    return;
 }
+
+document.addEventListener('DOMContentLoaded', toggleTypeFields);
 </script>
 {% endblock %}
