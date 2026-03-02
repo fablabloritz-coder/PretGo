@@ -100,8 +100,8 @@ def get_app_db():
 def get_next_inventory_number(conn, prefix):
     """
     Récupère le prochain numéro d'inventaire disponible pour un préfixe.
-    Réutilise les numéros "libérés" (les plus bas manquants).
-    Par ex: si PC-00001 et PC-00003 existent, retourne PC-00002.
+    Réutilise les numéros "libérés" (les plus bas manquants ou inactifs).
+    Par ex: si PC-00001 et PC-00003 existent (actifs), retourne PC-00002.
     Si 1,2,3 existent, retourne 4.
     
     Args:
@@ -112,10 +112,10 @@ def get_next_inventory_number(conn, prefix):
     """
     prefix = prefix.upper()
     
-    # Récupérer tous les numéros existants du préfixe
+    # Récupérer tous les numéros existants du préfixe (uniquement actifs)
     rows = conn.execute(
         "SELECT numero_inventaire FROM inventaire "
-        "WHERE numero_inventaire LIKE ? "
+        "WHERE numero_inventaire LIKE ? AND actif = 1 "
         "ORDER BY CAST(SUBSTR(numero_inventaire, ?, 5) AS INTEGER) ASC",
         (f'{prefix}-%', len(prefix) + 2)
     ).fetchall()

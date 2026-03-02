@@ -16,41 +16,43 @@ def test_inventory_reuse():
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         conn.execute('''CREATE TABLE inventaire (
-            id INTEGER PRIMARY KEY, numero_inventaire TEXT UNIQUE
+            id INTEGER PRIMARY KEY, 
+            numero_inventaire TEXT UNIQUE,
+            actif INTEGER DEFAULT 1
         )''')
         
         print("Test de réutilisation des numéros d'inventaire")
         print("=" * 60)
         
-        # Étape 1: Créer PC-00001
-        conn.execute('INSERT INTO inventaire (numero_inventaire) VALUES (?)', ('PC-00001',))
+        # Étape 1: Créer PC-00001 (actif)
+        conn.execute('INSERT INTO inventaire (numero_inventaire, actif) VALUES (?, 1)', ('PC-00001',))
         conn.commit()
         next_num = get_next_inventory_number(conn, 'PC')
         print(f"✓ Après création PC-00001 : prochain = {next_num}")
         assert next_num == 'PC-00002', f"Expected PC-00002, got {next_num}"
         
-        # Étape 2: Créer PC-00002
-        conn.execute('INSERT INTO inventaire (numero_inventaire) VALUES (?)', ('PC-00002',))
+        # Étape 2: Créer PC-00002 (actif)
+        conn.execute('INSERT INTO inventaire (numero_inventaire, actif) VALUES (?, 1)', ('PC-00002',))
         conn.commit()
         next_num = get_next_inventory_number(conn, 'PC')
         print(f"✓ Après création PC-00002 : prochain = {next_num}")
         assert next_num == 'PC-00003', f"Expected PC-00003, got {next_num}"
         
-        # Étape 3: Créer PC-00003
-        conn.execute('INSERT INTO inventaire (numero_inventaire) VALUES (?)', ('PC-00003',))
+        # Étape 3: Créer PC-00003 (actif)
+        conn.execute('INSERT INTO inventaire (numero_inventaire, actif) VALUES (?, 1)', ('PC-00003',))
         conn.commit()
         next_num = get_next_inventory_number(conn, 'PC')
         print(f"✓ Après création PC-00003 : prochain = {next_num}")
         assert next_num == 'PC-00004', f"Expected PC-00004, got {next_num}"
         
-        # Étape 4: Supprimer PC-00002
-        conn.execute('DELETE FROM inventaire WHERE numero_inventaire = ?', ('PC-00002',))
+        # Étape 4: Marquer PC-00002 comme inactif (suppression logique)
+        conn.execute('UPDATE inventaire SET actif = 0 WHERE numero_inventaire = ?', ('PC-00002',))
         conn.commit()
         next_num = get_next_inventory_number(conn, 'PC')
-        print(f"✓ Après suppression PC-00002 : prochain = {next_num}")
+        print(f"✓ Après désactivation PC-00002 : prochain = {next_num}")
         assert next_num == 'PC-00002', f"Expected PC-00002 (réutilisation), got {next_num}"
         
-        # Étape 5: Supprimer PC-00001
+        # Étape 5: Supprimer physiquement PC-00001
         conn.execute('DELETE FROM inventaire WHERE numero_inventaire = ?', ('PC-00001',))
         conn.commit()
         next_num = get_next_inventory_number(conn, 'PC')
@@ -58,11 +60,18 @@ def test_inventory_reuse():
         assert next_num == 'PC-00001', f"Expected PC-00001 (réutilisation), got {next_num}"
         
         # Étape 6: Ajouter de nouveau PC-00001 et le numéro suivant doit être PC-00002
-        conn.execute('INSERT INTO inventaire (numero_inventaire) VALUES (?)', ('PC-00001',))
+        conn.execute('INSERT INTO inventaire (numero_inventaire, actif) VALUES (?, 1)', ('PC-00001',))
         conn.commit()
         next_num = get_next_inventory_number(conn, 'PC')
         print(f"✓ Après réinsertion PC-00001 : prochain = {next_num}")
-        assert next_num == 'PC-00002', f"Expected PC-00002, got {next_num}"
+        assert next_num == 'PC-00002', f"Expected PC-00002 (réutilise inactif), got {next_num}"
+        
+        # Étape 7: Créer PC-00005 (saut volontaire sur 00002 inactif et création future de 00004)
+        conn.execute('INSERT INTO inventaire (numero_inventaire, actif) VALUES (?, 1)', ('PC-00005',))
+        conn.commit()
+        next_num = get_next_inventory_number(conn, 'PC')
+        print(f"✓ Après création PC-00005 (avec gaps) : prochain = {next_num}")
+        assert next_num == 'PC-00002', f"Expected PC-00002 (plus petit gap), got {next_num}"
         
         print("=" * 60)
         print("✅ Tous les tests de réutilisation passent !")
