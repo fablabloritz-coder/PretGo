@@ -112,10 +112,11 @@ def get_next_inventory_number(conn, prefix):
     """
     prefix = prefix.upper()
     
-    # Récupérer tous les numéros existants du préfixe (uniquement actifs)
+    # Récupérer tous les numéros existants du préfixe (actifs ET inactifs)
+    # On ne réutilise JAMAIS un numéro inactif pour éviter conflits d'historique
     rows = conn.execute(
         "SELECT numero_inventaire FROM inventaire "
-        "WHERE numero_inventaire LIKE ? AND actif = 1 "
+        "WHERE numero_inventaire LIKE ? "
         "ORDER BY CAST(SUBSTR(numero_inventaire, ?, 5) AS INTEGER) ASC",
         (f'{prefix}-%', len(prefix) + 2)
     ).fetchall()
