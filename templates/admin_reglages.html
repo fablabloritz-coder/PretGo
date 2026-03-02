@@ -471,13 +471,23 @@
                             <div id="httpSettings" style="{{ '' if imp_zebra_methode == 'http' else 'display:none' }}">
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold">URL de l'imprimante</label>
-                                    <input type="text" name="impression_zebra_url" class="form-control" value="{{ imp_zebra_url }}" placeholder="http://192.168.1.100:9100">
+                                    <input type="text" name="impression_zebra_url" id="impression_zebra_url" class="form-control" value="{{ imp_zebra_url }}" placeholder="http://192.168.1.100:9100">
+                                    <div class="form-text">
+                                        Indiquez l'endpoint API qui reçoit le ZPL en POST (pas la page web d'interface HTML). Pour Web-Z-Print, utilisez généralement <code>/print-code.php</code>.
+                                    </div>
+                                    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="btnTestZebraUrl" onclick="testerUrlZebra()">
+                                            <i class="bi bi-search"></i> Tester l'URL Zebra
+                                        </button>
+                                        <span class="text-muted small" id="zebraTestHint">Teste et propose automatiquement un endpoint API.</span>
+                                    </div>
+                                    <div id="zebraTestResult" class="small mt-2"></div>
                                 </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">Template ZPL</label>
                                 <textarea name="impression_zpl_template" class="form-control font-monospace" rows="3" style="font-size:0.85rem;">{{ imp_zpl_template }}</textarea>
-                                <div class="form-text">Variables : <code>{numero_inventaire}</code>, <code>{type}</code>, <code>{marque}</code>, <code>{modele}</code>, <code>{numero_serie}</code>, <code>{texte_libre}</code></div>
+                                <div class="form-text">Variables : <code>{numero_inventaire}</code>, <code>{type}</code>, <code>{marque}</code>, <code>{modele}</code>, <code>{numero_serie}</code>, <code>{texte_libre}</code>. Tailles dynamiques (liées aux sliders) : <code>{barcode_height}</code>, <code>{text_height}</code>, <code>{text_width}</code>, <code>{sub_height}</code>, <code>{sub_width}</code>, <code>{free_height}</code>, <code>{free_width}</code>, <code>{y_num}</code>, <code>{y_sub}</code>, <code>{y_free}</code>.</div>
                             </div>
                         </div>
                     </div>
@@ -764,6 +774,67 @@ function toggleMethode() {
     const isHttp = document.getElementById('methHttp').checked;
     document.getElementById('serialSettings').style.display = isHttp ? 'none' : '';
     document.getElementById('httpSettings').style.display = isHttp ? '' : 'none';
+}
+
+async function testerUrlZebra() {
+    const urlInput = document.getElementById('impression_zebra_url');
+    const result = document.getElementById('zebraTestResult');
+    const btn = document.getElementById('btnTestZebraUrl');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const rawUrl = (urlInput?.value || '').trim();
+
+    if (!rawUrl) {
+        result.className = 'small mt-2 text-danger';
+        result.textContent = 'Veuillez saisir une URL à tester.';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Test en cours...';
+    result.className = 'small mt-2 text-muted';
+    result.textContent = 'Analyse de l\'URL et recherche d\'endpoint API...';
+
+    try {
+        const response = await fetch("{{ url_for('admin.admin_test_zebra_url') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ url: rawUrl })
+        });
+
+        const data = await response.json();
+        const lines = [];
+
+        if (data.success && data.suggested_url) {
+            urlInput.value = data.suggested_url;
+            result.className = 'small mt-2 text-success';
+            lines.push('Endpoint probable détecté et appliqué dans le champ URL : ' + data.suggested_url);
+        } else {
+            result.className = 'small mt-2 text-danger';
+            lines.push(data.error || 'Aucun endpoint API détecté.');
+        }
+
+        if (Array.isArray(data.results) && data.results.length) {
+            const best = data.results.slice(0, 3).map(r => {
+                const st = (r.status === null || r.status === undefined) ? 'n/a' : r.status;
+                const ct = r.content_type || 'inconnu';
+                return '- ' + r.url + ' | HTTP ' + st + ' | ' + ct;
+            });
+            lines.push('', 'Diagnostic (top 3):', ...best);
+        }
+
+        result.textContent = lines.join('\n');
+        result.style.whiteSpace = 'pre-line';
+    } catch (e) {
+        result.className = 'small mt-2 text-danger';
+        result.style.whiteSpace = 'normal';
+        result.textContent = 'Erreur pendant le test : ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search"></i> Tester l\'URL Zebra';
+    }
 }
 
 // ═══ Aperçu étiquette ═══

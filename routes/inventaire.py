@@ -490,77 +490,207 @@ def imprimer_etiquettes():
 @bp.route('/imprimer/zebra', methods=['POST'])
 def imprimer_zebra():
     """Imprimer des étiquettes via imprimante Zebra (port série)."""
-    if get_setting('impression_zebra_active', '0') != '1':
-        return jsonify({'success': False, 'error': 'L\'impression Zebra n\'est pas activée.'}), 400
+    try:
+        if get_setting('impression_zebra_active', '0') != '1':
+            return jsonify({'success': False, 'error': 'L\'impression Zebra n\'est pas activée.'}), 400
 
-    ids = request.json.get('ids', []) if request.is_json else []
-    if not ids:
-        return jsonify({'success': False, 'error': 'Aucun matériel sélectionné.'}), 400
+        payload = request.get_json(silent=True) or {}
+        raw_ids = payload.get('ids', [])
+        ids = [int(value) for value in raw_ids if str(value).isdigit()]
+        if not ids:
+            return jsonify({'success': False, 'error': 'Aucun matériel sélectionné.'}), 400
 
-    conn = get_app_db()
-    placeholders = ','.join(['?'] * len(ids))
-    items = conn.execute(f'''
-        SELECT id, type_materiel, marque, modele, numero_inventaire, numero_serie
-        FROM inventaire WHERE id IN ({placeholders})
-    ''', ids).fetchall()
+        conn = get_app_db()
+        placeholders = ','.join(['?'] * len(ids))
+        items = conn.execute(f'''
+            SELECT id, type_materiel, marque, modele, numero_inventaire, numero_serie
+            FROM inventaire WHERE id IN ({placeholders})
+        ''', ids).fetchall()
 
-    if not items:
-        return jsonify({'success': False, 'error': 'Matériels non trouvés.'}), 404
+        if not items:
+            return jsonify({'success': False, 'error': 'Matériels non trouvés.'}), 404
 
-    # Charger la config Zebra
-    port = get_setting('impression_port', 'COM3')
-    baud = int(get_setting('impression_baud', '38400'))
-    tearoff = get_setting('impression_tearoff', '018')
-    zpl_template = get_setting('impression_zpl_template',
-        '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ')
+        port = get_setting('impression_port', 'COM3')
+        baud = int(get_setting('impression_baud', '38400'))
+        tearoff = get_setting('impression_tearoff', '018')
+        legacy_zpl = '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ'
+        previous_default_zpl = '^XA^CI27^FO20,15^BY2^BCN,65,N,N,N^FD{numero_inventaire}^FS^FO20,90^A0N,26,24^FD{numero_inventaire}^FS^FO20,120^A0N,20,18^FD{type} {marque} {modele}^FS^FO20,145^A0N,16,16^FD{texte_libre}^FS^XZ'
+        zpl_default = '^XA^CI27^FO20,15^BY2^BCN,{barcode_height},N,N,N^FD{numero_inventaire}^FS^FO20,{y_num}^A0N,{text_height},{text_width}^FD{numero_inventaire}^FS^FO20,{y_sub}^A0N,{sub_height},{sub_width}^FD{type} {marque} {modele}^FS^FO20,{y_free}^A0N,{free_height},{free_width}^FD{texte_libre}^FS^XZ'
+        zpl_template = get_setting('impression_zpl_template', zpl_default)
+        if zpl_template in (legacy_zpl, previous_default_zpl):
+            zpl_template = zpl_default
+        texte_libre = get_setting('impression_texte_libre', '')
 
-    texte_libre = get_setting('impression_texte_libre', '')
+        # Tailles dynamiques issues des sliders (impact Zebra uniquement)
+        barcode_slider = max(20, min(80, int(get_setting('impression_taille_barcode', '60'))))
+        texte_slider = max(4, min(16, int(get_setting('impression_taille_texte', '8'))))
+        sous_slider = max(3, min(12, int(get_setting('impression_taille_sous_texte', '6'))))
 
-    # Construire les commandes ZPL
-    zpl_commands = []
-    for item in items:
-        zpl = zpl_template.format(
-            numero_inventaire=item['numero_inventaire'] or '',
-            type=item['type_materiel'] or '',
-            marque=item['marque'] or '',
-            modele=item['modele'] or '',
-            numero_serie=item['numero_serie'] or '',
-            texte_libre=texte_libre
-        )
-        zpl_commands.append(f'~TA{tearoff}{zpl}')
+        barcode_height = int(round(barcode_slider * 1.1))
+        text_height = texte_slider * 3
+        text_width = max(12, int(text_height * 0.9))
+        sub_height = sous_slider * 3
+        sub_width = max(10, int(sub_height * 0.9))
+        free_height = max(10, (sous_slider - 1) * 3)
+        free_width = max(10, int(free_height * 0.9))
 
-    # Envoi selon la méthode configurée
-    methode = get_setting('impression_zebra_methode', 'serial')
+        y_num = 20 + barcode_height + 8
+        y_sub = y_num + text_height + 6
+        y_free = y_sub + sub_height + 4
 
-    if methode == 'http':
-        # Envoi via HTTP
-        zebra_url = get_setting('impression_zebra_url', 'http://localhost:9100')
-        try:
-            import urllib.request
-            for zpl in zpl_commands:
-                req = urllib.request.Request(zebra_url, data=zpl.encode('utf-8'),
-                                            method='POST')
-                req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-                urllib.request.urlopen(req, timeout=10)
-            return jsonify({'success': True,
-                            'message': f'{len(items)} étiquette(s) envoyée(s) via HTTP.'})
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'Erreur HTTP : {str(e)}'}), 500
-    else:
-        # Envoi via port série
+        zpl_payloads = []
+        zpl_commands = []
+        for item in items:
+            zpl = zpl_template.format(
+                numero_inventaire=item['numero_inventaire'] or '',
+                type=item['type_materiel'] or '',
+                marque=item['marque'] or '',
+                modele=item['modele'] or '',
+                numero_serie=item['numero_serie'] or '',
+                texte_libre=texte_libre,
+                barcode_height=barcode_height,
+                text_height=text_height,
+                text_width=text_width,
+                sub_height=sub_height,
+                sub_width=sub_width,
+                free_height=free_height,
+                free_width=free_width,
+                y_num=y_num,
+                y_sub=y_sub,
+                y_free=y_free
+            )
+            zpl_payloads.append(zpl)
+            zpl_commands.append(f'~TA{tearoff}{zpl}')
+
+        methode = get_setting('impression_zebra_methode', 'serial')
+
+        if methode == 'http':
+            zebra_url = get_setting('impression_zebra_url', 'http://localhost:9100').strip()
+            if zebra_url and '://' not in zebra_url:
+                zebra_url = f'http://{zebra_url}'
+            if zebra_url.endswith('/'):
+                zebra_url = zebra_url.rstrip('/')
+            try:
+                import urllib.request
+                import urllib.error
+                import urllib.parse
+
+                parsed_url = urllib.parse.urlparse(zebra_url)
+                web_z_print_mode = parsed_url.path.lower().endswith('/print-code.php') or parsed_url.path.lower() == '/print-code.php'
+
+                diagnostics = []
+                for index, item in enumerate(items, start=1):
+                    if web_z_print_mode:
+                        post_data = urllib.parse.urlencode({
+                            'qtt': 1,
+                            'code': zpl_payloads[index - 1]
+                        }).encode('utf-8')
+                        req = urllib.request.Request(zebra_url, data=post_data, method='POST')
+                        req.add_header('Content-Type', 'application/x-www-form-urlencoded; charset=utf-8')
+                    else:
+                        zpl = zpl_commands[index - 1]
+                        req = urllib.request.Request(zebra_url, data=zpl.encode('utf-8'), method='POST')
+                        req.add_header('Content-Type', 'text/plain; charset=utf-8')
+
+                    try:
+                        with urllib.request.urlopen(req, timeout=10) as resp:
+                            status = getattr(resp, 'status', None) or resp.getcode()
+                            content_type = resp.headers.get('Content-Type', '')
+                            preview = resp.read(220).decode('utf-8', errors='replace').strip().replace('\n', ' ')
+                    except urllib.error.HTTPError as e:
+                        status = e.code
+                        content_type = (e.headers.get('Content-Type', '') if e.headers else '')
+                        try:
+                            preview = e.read(220).decode('utf-8', errors='replace').strip().replace('\n', ' ')
+                        except Exception:
+                            preview = str(e)
+
+                    diagnostics.append({
+                        'label': index,
+                        'status': status,
+                        'content_type': content_type,
+                        'preview': preview[:160]
+                    })
+
+                    if web_z_print_mode:
+                        if status >= 400:
+                            return jsonify({
+                                'success': False,
+                                'error': f'Erreur Web-Z-Print : HTTP {status}.',
+                                'diagnostic': {
+                                    'mode': 'Web-Z-Print (print-code.php)',
+                                    'url': zebra_url,
+                                    'label': index,
+                                    'status': status,
+                                    'content_type': content_type,
+                                    'preview': preview[:160]
+                                }
+                            }), 502
+                        continue
+
+                    content_type_lower = (content_type or '').lower()
+                    preview_lower = (preview or '').lower()
+                    is_html = 'text/html' in content_type_lower or '<!doctype html' in preview_lower or '<html' in preview_lower
+
+                    if is_html:
+                        return jsonify({
+                            'success': False,
+                            'error': 'L\'URL HTTP configurée renvoie du HTML, pas un endpoint ZPL.',
+                            'diagnostic': {
+                                'mode': 'HTTP ZPL',
+                                'url': zebra_url,
+                                'label': index,
+                                'status': status,
+                                'content_type': content_type,
+                                'preview': preview[:160]
+                            }
+                        }), 502
+
+                    if status >= 400:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Erreur HTTP Zebra : {status}.',
+                            'diagnostic': {
+                                'mode': 'HTTP ZPL',
+                                'url': zebra_url,
+                                'label': index,
+                                'status': status,
+                                'content_type': content_type,
+                                'preview': preview[:160]
+                            }
+                        }), 502
+
+                mode_label = 'Web-Z-Print (print-code.php)' if web_z_print_mode else 'HTTP ZPL'
+                return jsonify({'success': True,
+                                'message': f'{len(items)} étiquette(s) envoyée(s) via HTTP ({mode_label}).',
+                                'diagnostic': {
+                                    'url': zebra_url,
+                                    'sent_count': len(zpl_commands),
+                                    'mode': mode_label,
+                                    'last_status': diagnostics[-1]['status'] if diagnostics else None,
+                                    'last_content_type': diagnostics[-1]['content_type'] if diagnostics else ''
+                                }})
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Erreur HTTP : {str(e)}'}), 500
+
         try:
             from zebra_print import envoyer_zpl
             resultat = envoyer_zpl(port, baud, zpl_commands)
             if resultat['success']:
                 return jsonify({'success': True,
                                 'message': f'{len(items)} étiquette(s) envoyée(s) à l\'imprimante.'})
-            else:
-                return jsonify({'success': False, 'error': resultat['error']}), 500
+            return jsonify({'success': False, 'error': resultat['error']}), 500
         except ImportError:
             return jsonify({'success': False,
                             'error': 'Module pyserial non installé. Exécutez : pip install pyserial'}), 500
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    except KeyError as e:
+        return jsonify({'success': False,
+                        'error': f'Template ZPL invalide : variable manquante {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erreur serveur : {str(e)}'}), 500
 
 
 

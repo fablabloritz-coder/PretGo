@@ -208,25 +208,48 @@ function imprimerSelection() {
 }
 
 {% if zebra_active %}
+function formatDiagnostic(diag) {
+    if (!diag) return '';
+    const parts = [];
+    if (diag.mode) parts.push('Mode: ' + diag.mode);
+    if (diag.url) parts.push('URL: ' + diag.url);
+    if (diag.label) parts.push('Etiquette: #' + diag.label);
+    if (diag.status !== undefined && diag.status !== null) parts.push('HTTP: ' + diag.status);
+    if (diag.content_type) parts.push('Type: ' + diag.content_type);
+    if (diag.last_content_type) parts.push('Type (dernier): ' + diag.last_content_type);
+    if (diag.sent_count) parts.push('Etiquettes envoyees: ' + diag.sent_count);
+    return parts.length ? ('\n\nDiagnostic:\n- ' + parts.join('\n- ')) : '';
+}
+
 function imprimerZebra() {
     const ids = getSelectedIds().map(Number);
     if (!ids.length) return;
     if (!confirm('Envoyer ' + ids.length + ' étiquette(s) à l\'imprimante Zebra ?')) return;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     fetch("{{ url_for('inventaire.imprimer_zebra') }}", {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+        },
         body: JSON.stringify({ids: ids})
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-        } else {
-            alert('Erreur : ' + data.error);
+    .then(async (r) => {
+        const contentType = r.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            const body = await r.text();
+            throw new Error('Réponse serveur invalide (attendu JSON). Statut ' + r.status + '.');
         }
+
+        const data = await r.json();
+        if (!r.ok || !data.success) {
+            throw new Error((data.error || ('Erreur HTTP ' + r.status)) + formatDiagnostic(data.diagnostic));
+        }
+        return data;
     })
-    .catch(err => alert('Erreur réseau : ' + err));
+    .then(data => alert(data.message + formatDiagnostic(data.diagnostic)))
+    .catch(err => alert('Erreur impression Zebra : ' + err.message));
 }
 {% endif %}
 </script>

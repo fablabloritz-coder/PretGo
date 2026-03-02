@@ -11,10 +11,107 @@ import random
 import re
 import unicodedata
 import zipfile
+import urllib.request
+import urllib.error
+import urllib.parse
 
 _audit = logging.getLogger('pretgo.audit')
 
 bp = Blueprint('admin', __name__)
+
+
+@bp.route('/admin/reglages/test-zebra-url', methods=['POST'])
+@admin_required
+def admin_test_zebra_url():
+    """Teste une URL Zebra HTTP et propose un endpoint API probable."""
+    payload = request.get_json(silent=True) or {}
+    raw_url = (payload.get('url') or '').strip()
+    if not raw_url:
+        return jsonify({'success': False, 'error': 'Veuillez saisir une URL Zebra.'}), 400
+
+    normalized = raw_url if '://' in raw_url else f'http://{raw_url}'
+    normalized = normalized.rstrip('/')
+
+    parsed = urllib.parse.urlparse(normalized)
+    if not parsed.scheme or not parsed.netloc:
+        return jsonify({'success': False, 'error': 'URL invalide.'}), 400
+
+    base = f'{parsed.scheme}://{parsed.netloc}'
+
+    candidates = [normalized]
+    for suffix in ('print-code.php', 'zpl', 'api/zpl', 'print', 'api/print', 'send', 'api/send', 'zpl.html'):
+        candidate = f'{base}/{suffix}'
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    results = []
+
+    for url in candidates[:10]:
+        status = None
+        content_type = ''
+        preview = ''
+        api_candidate = False
+        is_web_z_print = url.lower().endswith('/print-code.php')
+
+        try:
+            if is_web_z_print:
+                data = urllib.parse.urlencode({'qtt': 1, 'code': 'PRETGO-TEST'}).encode('utf-8')
+                req = urllib.request.Request(url, data=data, method='POST')
+                req.add_header('Content-Type', 'application/x-www-form-urlencoded; charset=utf-8')
+            else:
+                req = urllib.request.Request(url, data=b'PRETGO_ZPL_PROBE', method='POST')
+                req.add_header('Content-Type', 'text/plain; charset=utf-8')
+
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                status = getattr(resp, 'status', None) or resp.getcode()
+                content_type = (resp.headers.get('Content-Type', '') or '').lower()
+                preview = resp.read(220).decode('utf-8', errors='replace').strip().replace('\n', ' ')
+
+        except urllib.error.HTTPError as e:
+            status = e.code
+            content_type = (e.headers.get('Content-Type', '') if e.headers else '').lower()
+            try:
+                preview = e.read(220).decode('utf-8', errors='replace').strip().replace('\n', ' ')
+            except Exception:
+                preview = str(e)
+        except Exception as e:
+            preview = str(e)
+
+        preview_lower = (preview or '').lower()
+        html_like = 'text/html' in (content_type or '') or '<!doctype html' in preview_lower or '<html' in preview_lower
+
+        if status is not None:
+            if is_web_z_print:
+                api_candidate = 200 <= status < 300
+            else:
+                api_candidate = (200 <= status < 300 or status in (400, 401, 403, 405, 415)) and (not html_like)
+
+        results.append({
+            'url': url,
+            'status': status,
+            'content_type': content_type,
+            'preview': preview[:160],
+            'api_candidate': api_candidate,
+            'mode': 'web-z-print' if is_web_z_print else 'zpl-http'
+        })
+
+    best = next((r for r in results if r['api_candidate'] and r['mode'] == 'web-z-print'), None)
+    if not best:
+        best = next((r for r in results if r['api_candidate']), None)
+    if best:
+        mode_msg = ' (mode Web-Z-Print)' if best.get('mode') == 'web-z-print' else ''
+        return jsonify({
+            'success': True,
+            'message': f"Endpoint détecté{mode_msg} : {best['url']}",
+            'suggested_url': best['url'],
+            'results': results
+        })
+
+    return jsonify({
+        'success': False,
+        'error': 'Aucun endpoint API Zebra probable détecté automatiquement.',
+        'results': results
+    }), 404
 
 @bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -380,7 +477,12 @@ def admin_reglages():
 
     duree_defaut = get_setting('duree_alerte_defaut', '7')
     unite_defaut = get_setting('duree_alerte_unite', 'jours')
-    zpl_default = '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ'
+    legacy_zpl = '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ'
+    previous_default_zpl = '^XA^CI27^FO20,15^BY2^BCN,65,N,N,N^FD{numero_inventaire}^FS^FO20,90^A0N,26,24^FD{numero_inventaire}^FS^FO20,120^A0N,20,18^FD{type} {marque} {modele}^FS^FO20,145^A0N,16,16^FD{texte_libre}^FS^XZ'
+    zpl_default = '^XA^CI27^FO20,15^BY2^BCN,{barcode_height},N,N,N^FD{numero_inventaire}^FS^FO20,{y_num}^A0N,{text_height},{text_width}^FD{numero_inventaire}^FS^FO20,{y_sub}^A0N,{sub_height},{sub_width}^FD{type} {marque} {modele}^FS^FO20,{y_free}^A0N,{free_height},{free_width}^FD{texte_libre}^FS^XZ'
+    zpl_template = get_setting('impression_zpl_template', zpl_default)
+    if zpl_template in (legacy_zpl, previous_default_zpl):
+        zpl_template = zpl_default
     return render_template('admin_reglages.html',
                            duree_defaut=duree_defaut, unite_defaut=unite_defaut,
                            nom_etablissement=get_setting('nom_etablissement', ''),
@@ -390,7 +492,7 @@ def admin_reglages():
                            imp_baud=get_setting('impression_baud', '38400'),
                            imp_tearoff=get_setting('impression_tearoff', '018'),
                            imp_zebra_url=get_setting('impression_zebra_url', 'http://localhost:9100'),
-                           imp_zpl_template=get_setting('impression_zpl_template', zpl_default),
+                           imp_zpl_template=zpl_template,
                            imp_largeur=get_setting('impression_etiquette_largeur', '51'),
                            imp_hauteur=get_setting('impression_etiquette_hauteur', '25'),
                            imp_colonnes=get_setting('impression_colonnes', '4'),

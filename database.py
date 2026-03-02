@@ -275,7 +275,7 @@ def init_db():
         'impression_baud': '38400',
         'impression_tearoff': '018',
         'impression_zebra_url': 'http://localhost:9100',
-        'impression_zpl_template': '^XA^CI27^FO15,20^BY2^BCN,80,N^FD{numero_inventaire}^FS^FO25,130^A0,50,28^FD{numero_inventaire}^FS^XZ',
+        'impression_zpl_template': '^XA^CI27^FO20,15^BY2^BCN,{barcode_height},N,N,N^FD{numero_inventaire}^FS^FO20,{y_num}^A0N,{text_height},{text_width}^FD{numero_inventaire}^FS^FO20,{y_sub}^A0N,{sub_height},{sub_width}^FD{type} {marque} {modele}^FS^FO20,{y_free}^A0N,{free_height},{free_width}^FD{texte_libre}^FS^XZ',
         'impression_etiquette_largeur': '51',
         'impression_etiquette_hauteur': '25',
         'impression_colonnes': '4',
