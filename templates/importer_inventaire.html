@@ -67,8 +67,13 @@
                         <tr><td><code>marque</code></td><td>Non</td></tr>
                         <tr><td><code>modele</code></td><td>Non</td></tr>
                         <tr><td><code>numero_serie</code></td><td>Non</td></tr>
-                        <tr><td><code>systeme_exploitation</code></td><td>Non</td></tr>
                         <tr><td><code>notes</code></td><td>Non</td></tr>
+                        {% for champ in champs_custom %}
+                        <tr>
+                            <td><code>custom_{{ champ.nom_champ }}</code></td>
+                            <td>{% if champ.obligatoire %}✅ Oui{% else %}Non{% endif %}</td>
+                        </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
 
@@ -77,6 +82,9 @@
                     Les doublons (même n° inventaire) seront ignorés.
                     Les types sont normalisés automatiquement
                     (pc → Ordinateur, vp → Vidéoprojecteur, etc.)
+                    {% if champs_custom %}
+                    <br>Les champs personnalisés sont importables via les colonnes <code>custom_&lt;nom_champ&gt;</code>.
+                    {% endif %}
                 </div>
 
                 <a href="{{ url_for('inventaire.telecharger_gabarit_inventaire') }}"

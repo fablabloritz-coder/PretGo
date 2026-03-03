@@ -268,9 +268,19 @@
                             <div class="accordion-body px-0 small">
                                 Fichier <strong>.csv</strong> avec les colonnes :
                                 <code>nom</code>, <code>prenom</code>, <code>categorie</code>,
-                                <code>classe</code>, <code>email</code>.<br>
+                                <code>classe</code>, <code>email</code>
+                                {% if champs_custom %},
+                                {% for champ in champs_custom %}
+                                <code>custom_{{ champ.nom_champ }}</code>{% if not loop.last %}, {% else %}.{% endif %}
+                                {% endfor %}
+                                {% else %}.
+                                {% endif %}<br>
                                 Séparateur : <strong>point-virgule</strong> (;) ou virgule (,).<br>
                                 Encodage : UTF-8 (par défaut dans Excel et LibreOffice).<br><br>
+                                {% if champs_custom %}
+                                <strong>Champs personnalisés :</strong> utilisez le préfixe
+                                <code>custom_</code> + le nom technique du champ.<br><br>
+                                {% endif %}
                                 <strong>Catégories acceptées :</strong><br>
                                 {% for cle, cat in cats_personnes.items() %}
                                 <span class="badge me-1" style="{{ cle | style_categorie }}">{{ cle }}</span>

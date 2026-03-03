@@ -1,7 +1,7 @@
 """PretGo — Blueprint : export"""
 from flask import Blueprint, render_template
 from database import get_setting
-from utils import get_app_db, admin_required, calcul_depassement_heures, csv_response
+from utils import get_app_db, admin_required, calcul_depassement_heures, csv_response, get_champs_personnalises
 import csv
 import io
 
@@ -156,15 +156,38 @@ def export_alertes():
 def export_personnes():
     conn = get_app_db()
     personnes = conn.execute(
-        'SELECT nom, prenom, categorie, classe, email FROM personnes WHERE actif = 1 ORDER BY nom, prenom'
+        'SELECT id, nom, prenom, categorie, classe, email FROM personnes WHERE actif = 1 ORDER BY nom, prenom'
     ).fetchall()
+
+    champs_custom = [dict(ch) for ch in get_champs_personnalises('personne')]
+    custom_headers = [f"custom_{ch['nom_champ']}" for ch in champs_custom]
+
+    custom_map = {}
+    if personnes and champs_custom:
+        ids = [p['id'] for p in personnes]
+        placeholders = ','.join(['?'] * len(ids))
+        rows = conn.execute(f'''
+            SELECT vcp.entite_id, cp.nom_champ, vcp.valeur
+            FROM valeurs_champs_personnalises vcp
+            JOIN champs_personnalises cp ON cp.id = vcp.champ_id
+            WHERE cp.entite = 'personne' AND cp.actif = 1 AND vcp.entite_id IN ({placeholders})
+        ''', ids).fetchall()
+        for r in rows:
+            entite_id = r['entite_id']
+            if entite_id not in custom_map:
+                custom_map[entite_id] = {}
+            custom_map[entite_id][r['nom_champ']] = r['valeur']
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe', 'Email'])
+    writer.writerow(['Nom', 'Prénom', 'Catégorie', 'Classe', 'Email'] + custom_headers)
 
     for p in personnes:
-        writer.writerow([p['nom'], p['prenom'], p['categorie'], p['classe'], p['email'] or ''])
+        row = [p['nom'], p['prenom'], p['categorie'], p['classe'], p['email'] or '']
+        values = custom_map.get(p['id'], {})
+        for ch in champs_custom:
+            row.append(values.get(ch['nom_champ'], ''))
+        writer.writerow(row)
 
     return csv_response(output, 'export_personnes')
 
@@ -176,22 +199,43 @@ def export_inventaire():
     """Exporter l'inventaire matériel."""
     conn = get_app_db()
     items = conn.execute(
-        'SELECT type_materiel, marque, modele, numero_serie, numero_inventaire, '
-        'systeme_exploitation, etat, notes FROM inventaire WHERE actif = 1 '
+        'SELECT id, type_materiel, marque, modele, numero_serie, numero_inventaire, etat, notes '
+        'FROM inventaire WHERE actif = 1 '
         'ORDER BY type_materiel, numero_inventaire'
     ).fetchall()
 
+    champs_custom = [dict(ch) for ch in get_champs_personnalises('materiel')]
+    custom_headers = [f"custom_{ch['nom_champ']}" for ch in champs_custom]
+
+    custom_map = {}
+    if items and champs_custom:
+        ids = [i['id'] for i in items]
+        placeholders = ','.join(['?'] * len(ids))
+        rows = conn.execute(f'''
+            SELECT vcp.entite_id, cp.nom_champ, vcp.valeur
+            FROM valeurs_champs_personnalises vcp
+            JOIN champs_personnalises cp ON cp.id = vcp.champ_id
+            WHERE cp.entite = 'materiel' AND cp.actif = 1 AND vcp.entite_id IN ({placeholders})
+        ''', ids).fetchall()
+        for r in rows:
+            entite_id = r['entite_id']
+            if entite_id not in custom_map:
+                custom_map[entite_id] = {}
+            custom_map[entite_id][r['nom_champ']] = r['valeur']
+
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(['Type', 'Marque', 'Modèle', 'N° série', 'N° inventaire',
-                     'Système d\'exploitation', 'État', 'Notes'])
+    writer.writerow(['Type', 'Marque', 'Modèle', 'N° série', 'N° inventaire', 'État', 'Notes'] + custom_headers)
 
     for item in items:
-        writer.writerow([
+        row = [
             item['type_materiel'], item['marque'], item['modele'],
-            item['numero_serie'], item['numero_inventaire'],
-            item['systeme_exploitation'], item['etat'], item['notes'] or ''
-        ])
+            item['numero_serie'], item['numero_inventaire'], item['etat'], item['notes'] or ''
+        ]
+        values = custom_map.get(item['id'], {})
+        for ch in champs_custom:
+            row.append(values.get(ch['nom_champ'], ''))
+        writer.writerow(row)
 
     return csv_response(output, 'export_inventaire')
 

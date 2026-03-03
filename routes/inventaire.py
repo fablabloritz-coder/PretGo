@@ -314,6 +314,9 @@ def historique_materiel(mat_id):
 @bp.route('/inventaire/importer', methods=['GET', 'POST'])
 @admin_required
 def importer_inventaire():
+    champs_custom = [dict(ch) for ch in get_champs_personnalises('materiel')]
+    custom_by_name = {ch['nom_champ']: ch for ch in champs_custom}
+
     if request.method == 'POST':
         if 'fichier_csv' not in request.files:
             flash('Aucun fichier sélectionné.', 'danger')
@@ -353,9 +356,25 @@ def importer_inventaire():
                 modele = (ligne.get('modele') or ligne.get('Modele') or ligne.get('Modèle') or '').strip()
                 num_serie = (ligne.get('numero_serie') or ligne.get('Numero serie')
                              or ligne.get('N° série') or '').strip()
+                # Rétrocompatibilité: colonne OS toujours acceptée à l'import,
+                # même si elle n'est plus affichée dans le formulaire d'ajout.
                 os_val = (ligne.get('systeme_exploitation') or ligne.get('OS')
                           or ligne.get('Système') or '').strip()
                 notes = (ligne.get('notes') or ligne.get('Notes') or '').strip()
+
+                # Colonnes des champs personnalisés: custom_<nom_champ>
+                custom_form_data = {}
+                for nom_champ, champ in custom_by_name.items():
+                    colonne = f'custom_{nom_champ}'
+                    valeur = (ligne.get(colonne) or '').strip()
+                    if champ.get('type_champ') == 'case_a_cocher':
+                        valeur_norm = valeur.lower()
+                        if valeur_norm in ('1', 'true', 'vrai', 'oui', 'yes', 'x'):
+                            custom_form_data[colonne] = 'oui'
+                        else:
+                            custom_form_data[colonne] = ''
+                    else:
+                        custom_form_data[colonne] = valeur
 
                 # Normaliser le type par rapport aux catégories existantes
                 type_lower = type_mat.lower()
@@ -369,13 +388,14 @@ def importer_inventaire():
                 if existant:
                     doublons += 1
                 else:
-                    conn.execute(
+                    cursor = conn.execute(
                         '''INSERT INTO inventaire (type_materiel, marque, modele,
                            numero_serie, numero_inventaire, systeme_exploitation, notes)
                            VALUES (?, ?, ?, ?, ?, ?, ?)''',
                         (type_mat if type_mat else (categories_mat[0] if categories_mat else 'Autre'),
                          marque, modele, num_serie, num_inv, os_val, notes)
                     )
+                    sauver_valeurs_champs(cursor.lastrowid, 'materiel', custom_form_data)
                     ajoutes += 1
 
             conn.commit()
@@ -389,7 +409,7 @@ def importer_inventaire():
             flash(f"Erreur lors de l'import : {str(e)}", 'danger')
             return redirect(request.url)
 
-    return render_template('importer_inventaire.html')
+    return render_template('importer_inventaire.html', champs_custom=champs_custom)
 
 
 
@@ -399,26 +419,44 @@ def telecharger_gabarit_inventaire():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
 
-    writer.writerow(['type_materiel', 'marque', 'modele', 'numero_serie',
-                     'numero_inventaire', 'systeme_exploitation', 'notes'])
+    champs_custom = [dict(ch) for ch in get_champs_personnalises('materiel')]
+    custom_columns = [f"custom_{ch['nom_champ']}" for ch in champs_custom]
+    base_columns = ['type_materiel', 'marque', 'modele', 'numero_serie',
+                    'numero_inventaire', 'notes']
+    columns = base_columns + custom_columns
+    writer.writerow(columns)
 
     # Charger les catégories de matériel depuis la base
     conn = get_app_db()
     categories = conn.execute('SELECT nom, prefixe_inventaire FROM categories_materiel ORDER BY nom').fetchall()
 
-    # Exemples connus par type (marque, modele, n° serie, OS)
+    # Exemples connus par type (marque, modele, n° serie)
     exemples = {
-        'Ordinateur':       [('HP', 'EliteBook 840', 'SN-HP-001', 'Windows 11'),
-                             ('Dell', 'Latitude 5520', 'SN-DELL-002', 'Windows 11')],
-        'Vidéoprojecteur':  [('Epson', 'EB-W52', '', '')],
-        'Casque audio':     [('Logitech', 'H390', '', '')],
+        'Ordinateur':       [('HP', 'EliteBook 840', 'SN-HP-001'),
+                             ('Dell', 'Latitude 5520', 'SN-DELL-002')],
+        'Vidéoprojecteur':  [('Epson', 'EB-W52', '')],
+        'Casque audio':     [('Logitech', 'H390', '')],
     }
+
+    custom_defaults = {}
+    for champ in champs_custom:
+        nom = champ['nom_champ']
+        if champ['type_champ'] == 'choix':
+            options = [o.strip() for o in (champ.get('options') or '').split(',') if o.strip()]
+            custom_defaults[nom] = options[0] if options else ''
+        elif champ['type_champ'] == 'case_a_cocher':
+            custom_defaults[nom] = ''
+        else:
+            custom_defaults[nom] = ''
+
+    def build_custom_values():
+        return [custom_defaults.get(ch['nom_champ'], '') for ch in champs_custom]
 
     for idx, cat in enumerate(categories):
         nom = cat['nom']
         prefixe = cat['prefixe_inventaire'] or 'INV'
         libelle_section = nom.upper()
-        writer.writerow([f'# ══════ {libelle_section} ══════', '', '', '', '', '', ''])
+        writer.writerow([f'# ══════ {libelle_section} ══════'] + [''] * (len(columns) - 1))
 
         # Numéro d'inventaire de base pour cette section
         base_num = (idx + 1) * 100 + 1
@@ -426,19 +464,19 @@ def telecharger_gabarit_inventaire():
         # Écrire les exemples connus ou un exemple générique
         lignes_exemple = exemples.get(nom, [])
         if lignes_exemple:
-            for i, (marque, modele, ns, os_val) in enumerate(lignes_exemple):
+            for i, (marque, modele, ns) in enumerate(lignes_exemple):
                 num_inv = f'{prefixe}-{base_num + i:05d}'
-                writer.writerow([nom, marque, modele, ns, num_inv, os_val, ''])
+                writer.writerow([nom, marque, modele, ns, num_inv, ''] + build_custom_values())
             start = len(lignes_exemple)
         else:
             num_inv = f'{prefixe}-{base_num:05d}'
-            writer.writerow([nom, '', '', '', num_inv, '', ''])
+            writer.writerow([nom, '', '', '', num_inv, ''] + build_custom_values())
             start = 1
 
         # Lignes vides pré-remplies avec la catégorie
         for i in range(start, start + 5):
             num_inv = f'{prefixe}-{base_num + i:05d}'
-            writer.writerow([nom, '', '', '', num_inv, '', ''])
+            writer.writerow([nom, '', '', '', num_inv, ''] + build_custom_values())
 
     output.seek(0)
     bom = '\ufeff'

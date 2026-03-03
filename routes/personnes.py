@@ -191,6 +191,9 @@ def supprimer_personne(personne_id):
 @bp.route('/personnes/importer', methods=['GET', 'POST'])
 @admin_required
 def importer_personnes():
+    champs_custom = [dict(ch) for ch in get_champs_personnalises('personne')]
+    custom_by_name = {ch['nom_champ']: ch for ch in champs_custom}
+
     if request.method == 'POST':
         if 'fichier_csv' not in request.files:
             flash('Aucun fichier sélectionné.', 'danger')
@@ -246,6 +249,20 @@ def importer_personnes():
                 classe = (ligne.get('classe') or ligne.get('Classe') or '').strip()
                 email = (ligne.get('email') or ligne.get('Email') or ligne.get('e-mail') or ligne.get('E-mail') or ligne.get('courriel') or ligne.get('Courriel') or '').strip().lower()
 
+                # Colonnes des champs personnalisés: custom_<nom_champ>
+                custom_form_data = {}
+                for nom_champ, champ in custom_by_name.items():
+                    colonne = f'custom_{nom_champ}'
+                    valeur = (ligne.get(colonne) or '').strip()
+                    if champ.get('type_champ') == 'case_a_cocher':
+                        valeur_norm = valeur.lower()
+                        if valeur_norm in ('1', 'true', 'vrai', 'oui', 'yes', 'x'):
+                            custom_form_data[colonne] = 'oui'
+                        else:
+                            custom_form_data[colonne] = ''
+                    else:
+                        custom_form_data[colonne] = valeur
+
                 # Ignorer les lignes vides ou les séparateurs de catégorie
                 if not nom or not prenom:
                     continue
@@ -283,6 +300,7 @@ def importer_personnes():
                             'UPDATE personnes SET classe = ?, email = ?, actif = 1 WHERE id = ?',
                             (classe, email, existant['id'])
                         )
+                        sauver_valeurs_champs(existant['id'], 'personne', custom_form_data)
                         mis_a_jour += 1
                     else:
                         ignores += 1
@@ -301,6 +319,7 @@ def importer_personnes():
                             (categorie, classe, email, existant_autre['id'])
                         )
                         ids_importes.add(existant_autre['id'])
+                        sauver_valeurs_champs(existant_autre['id'], 'personne', custom_form_data)
                         mis_a_jour += 1
                     else:
                         cursor = conn.execute(
@@ -308,6 +327,7 @@ def importer_personnes():
                             (nom, prenom, categorie, classe, email)
                         )
                         ids_importes.add(cursor.lastrowid)
+                        sauver_valeurs_champs(cursor.lastrowid, 'personne', custom_form_data)
                         ajoutes += 1
 
             # Mode synchroniser : désactiver les absents (sauf prêts en cours)
@@ -369,7 +389,7 @@ def importer_personnes():
             flash(f"Erreur lors de l'import : {str(e)}", 'danger')
             return redirect(request.url)
 
-    return render_template('importer.html')
+    return render_template('importer.html', champs_custom=champs_custom)
 
 
 
@@ -379,7 +399,10 @@ def telecharger_gabarit():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
 
-    writer.writerow(['nom', 'prenom', 'categorie', 'classe', 'email'])
+    champs_custom = [dict(ch) for ch in get_champs_personnalises('personne')]
+    custom_columns = [f"custom_{ch['nom_champ']}" for ch in champs_custom]
+    columns = ['nom', 'prenom', 'categorie', 'classe', 'email'] + custom_columns
+    writer.writerow(columns)
 
     # Charger les catégories de personnes depuis la base
     cats = get_categories_personnes()
@@ -392,23 +415,37 @@ def telecharger_gabarit():
         'non_enseignant':[('GIRARD', 'Marc', '', 'marc.girard@ecole.fr')],
     }
 
+    custom_defaults = {}
+    for champ in champs_custom:
+        nom = champ['nom_champ']
+        if champ['type_champ'] == 'choix':
+            options = [o.strip() for o in (champ.get('options') or '').split(',') if o.strip()]
+            custom_defaults[nom] = options[0] if options else ''
+        elif champ['type_champ'] == 'case_a_cocher':
+            custom_defaults[nom] = ''
+        else:
+            custom_defaults[nom] = ''
+
+    def build_custom_values():
+        return [custom_defaults.get(ch['nom_champ'], '') for ch in champs_custom]
+
     for cat in cats:
         cle = cat['cle']
         libelle = cat['libelle'].upper()
-        writer.writerow([f'# ══════ {libelle} ══════', '', '', '', ''])
+        writer.writerow([f'# ══════ {libelle} ══════'] + [''] * (len(columns) - 1))
 
         # Écrire les exemples connus ou un exemple générique
         lignes_exemple = exemples.get(cle, [])
         if lignes_exemple:
             for nom, prenom, classe, email in lignes_exemple:
-                writer.writerow([nom, prenom, cle, classe, email])
+                writer.writerow([nom, prenom, cle, classe, email] + build_custom_values())
         else:
-            writer.writerow(['NOM', 'Prenom', cle, '', ''])
+            writer.writerow(['NOM', 'Prenom', cle, '', ''] + build_custom_values())
 
         # Lignes vides pré-remplies avec la catégorie
         nb_vides = 18 if cle == 'eleve' else 8 if cle == 'enseignant' else 5
         for _ in range(nb_vides):
-            writer.writerow(['', '', cle, '', ''])
+            writer.writerow(['', '', cle, '', ''] + build_custom_values())
 
     output.seek(0)
     bom = '\ufeff'
