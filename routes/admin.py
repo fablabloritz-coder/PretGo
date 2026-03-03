@@ -535,6 +535,149 @@ def admin_reset_db():
         return redirect(url_for('admin.admin_reglages'))
 
 
+@bp.route('/admin/reset-db-partiel', methods=['POST'])
+@admin_required
+def admin_reset_db_partiel():
+    """Réinitialisation sélective de certaines données métier."""
+    selected = set(request.form.getlist('targets'))
+    confirmation = request.form.get('confirmation_partielle', '').strip()
+
+    labels = {
+        'materiel': 'Matériel',
+        'personnes': 'Personnes',
+        'prets': 'Prêts / Historique',
+        'cat_materiel': 'Catégories matériel',
+        'cat_personnes': 'Catégories personnes',
+        'lieux': 'Lieux',
+        'champs_materiel': 'Champs personnalisés matériel',
+        'champs_personnes': 'Champs personnalisés personnes',
+    }
+
+    selected = {s for s in selected if s in labels}
+    if not selected:
+        flash('Sélectionnez au moins un élément à réinitialiser.', 'warning')
+        return redirect(url_for('admin.admin_reglages'))
+
+    if confirmation != 'REINITIALISER_SELECTION':
+        flash('Confirmation invalide. Tapez REINITIALISER_SELECTION.', 'danger')
+        return redirect(url_for('admin.admin_reglages'))
+
+    conn = get_app_db()
+
+    # Garde-fous de cohérence
+    if 'personnes' in selected and 'prets' not in selected:
+        nb_prets = conn.execute(
+            'SELECT COUNT(*) FROM prets WHERE personne_id IS NOT NULL'
+        ).fetchone()[0]
+        if nb_prets > 0:
+            flash('Impossible de réinitialiser "Personnes" sans "Prêts / Historique" : l\'historique des prêts référence encore des personnes.', 'danger')
+            return redirect(url_for('admin.admin_reglages'))
+
+    if 'materiel' in selected and 'prets' not in selected:
+        nb_prets_legacy = conn.execute(
+            'SELECT COUNT(*) FROM prets WHERE materiel_id IS NOT NULL AND retour_confirme = 0'
+        ).fetchone()[0]
+        nb_prets_multi = conn.execute('''
+            SELECT COUNT(*)
+            FROM pret_materiels pm
+            JOIN prets p ON p.id = pm.pret_id
+            WHERE pm.materiel_id IS NOT NULL AND p.retour_confirme = 0
+        ''').fetchone()[0]
+        if nb_prets_legacy + nb_prets_multi > 0:
+            flash('Impossible de réinitialiser "Matériel" sans "Prêts / Historique" : des prêts actifs sont liés à du matériel.', 'danger')
+            return redirect(url_for('admin.admin_reglages'))
+
+    if 'cat_materiel' in selected and 'materiel' not in selected:
+        nb_mat = conn.execute('SELECT COUNT(*) FROM inventaire WHERE actif = 1').fetchone()[0]
+        if nb_mat > 0:
+            flash('Impossible de réinitialiser "Catégories matériel" sans "Matériel" tant que des matériels existent.', 'danger')
+            return redirect(url_for('admin.admin_reglages'))
+
+    if 'cat_personnes' in selected and 'personnes' not in selected:
+        nb_pers = conn.execute('SELECT COUNT(*) FROM personnes WHERE actif = 1').fetchone()[0]
+        if nb_pers > 0:
+            flash('Impossible de réinitialiser "Catégories personnes" sans "Personnes" tant que des personnes existent.', 'danger')
+            return redirect(url_for('admin.admin_reglages'))
+
+    try:
+        # 1) Prêts / historique
+        if 'prets' in selected:
+            conn.execute('DELETE FROM pret_materiels')
+            conn.execute('DELETE FROM prets')
+            conn.execute("UPDATE inventaire SET etat = 'disponible' WHERE actif = 1")
+
+        # 2) Personnes
+        if 'personnes' in selected:
+            conn.execute('DELETE FROM valeurs_champs_personnalises WHERE champ_id IN (SELECT id FROM champs_personnalises WHERE entite = ?)', ('personne',))
+            conn.execute('DELETE FROM personnes')
+
+        # 3) Matériel
+        if 'materiel' in selected:
+            if 'prets' not in selected:
+                # Conserver l'historique tout en détachant les références matériel
+                conn.execute('UPDATE prets SET materiel_id = NULL WHERE retour_confirme = 1')
+                conn.execute('''
+                    UPDATE pret_materiels
+                    SET materiel_id = NULL
+                    WHERE pret_id IN (SELECT id FROM prets WHERE retour_confirme = 1)
+                ''')
+
+            conn.execute('DELETE FROM valeurs_champs_personnalises WHERE champ_id IN (SELECT id FROM champs_personnalises WHERE entite = ?)', ('materiel',))
+            conn.execute('DELETE FROM inventaire')
+
+        # 4) Catégories matériel
+        if 'cat_materiel' in selected:
+            conn.execute('DELETE FROM categories_materiel')
+            categories_defaut = [
+                ('Informatique', 'PC'), ('Audio/Vidéo', 'AV'), ('Sport', 'SPT'),
+                ('Livres', 'LIV'), ('Outils', 'OUT'), ('Fournitures', 'FRN'),
+                ('Réseau', 'NET'), ('Autre', 'DIV')
+            ]
+            for nom, prefixe in categories_defaut:
+                conn.execute('INSERT INTO categories_materiel (nom, prefixe_inventaire) VALUES (?, ?)', (nom, prefixe))
+
+        # 5) Catégories personnes
+        if 'cat_personnes' in selected:
+            conn.execute('DELETE FROM categories_personnes')
+            categories_personnes_defaut = [
+                ('eleve', 'Élève', 'bi-mortarboard', '#e8f0fe', '#1a73e8', 1),
+                ('enseignant', 'Enseignant', 'bi-person-workspace', '#e6f4ea', '#0d904f', 2),
+                ('agent', 'Agent', 'bi-person-badge', '#fef7e0', '#ea8600', 3),
+                ('non_enseignant', 'Non enseignant', 'bi-person', '#f1f3f4', '#5f6368', 4),
+            ]
+            for row in categories_personnes_defaut:
+                conn.execute(
+                    '''INSERT INTO categories_personnes (cle, libelle, icone, couleur_bg, couleur_text, ordre)
+                       VALUES (?, ?, ?, ?, ?, ?)''',
+                    row
+                )
+
+        # 6) Lieux
+        if 'lieux' in selected:
+            if 'prets' not in selected:
+                conn.execute('UPDATE prets SET lieu_id = NULL')
+            conn.execute('DELETE FROM lieux')
+            for nom_lieu in ['Salle informatique', 'CDI', 'Salle de réunion', 'Bureau administratif', 'Atelier', 'Gymnase']:
+                conn.execute('INSERT INTO lieux (nom) VALUES (?)', (nom_lieu,))
+
+        # 7) Champs personnalisés
+        if 'champs_materiel' in selected:
+            conn.execute("DELETE FROM champs_personnalises WHERE entite = 'materiel'")
+        if 'champs_personnes' in selected:
+            conn.execute("DELETE FROM champs_personnalises WHERE entite = 'personne'")
+
+        conn.commit()
+
+        resume = ', '.join(labels[k] for k in labels if k in selected)
+        _audit.info('RESET_DB_PARTIEL (%s) depuis %s', ','.join(sorted(selected)), request.remote_addr)
+        flash(f'Réinitialisation sélective effectuée : {resume}.', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erreur lors de la réinitialisation sélective : {str(e)}', 'danger')
+
+    return redirect(url_for('admin.admin_reglages'))
+
+
 
 @bp.route('/admin/generer-demo', methods=['POST'])
 @admin_required

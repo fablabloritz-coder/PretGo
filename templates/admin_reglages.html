@@ -712,6 +712,69 @@
                     <i class="bi bi-trash3-fill"></i> Réinitialiser la base de données
                 </button>
             </form>
+
+            <hr class="my-4">
+
+            <h6 class="fw-bold text-danger mb-3"><i class="bi bi-sliders"></i> Réinitialisation sélective (nettoyage ciblé)</h6>
+            <p class="text-muted small">
+                Choisissez précisément quelles données réinitialiser. Les dépendances sont vérifiées automatiquement
+                (par ex. impossible de supprimer des personnes si l'historique de prêts les référence encore ;
+                pour le matériel, les références des prêts retournés sont détachées automatiquement).
+            </p>
+
+            <form method="POST" action="{{ url_for('admin.admin_reset_db_partiel') }}" id="form-reset-partiel"
+                  onsubmit="return confirm('Confirmez-vous la réinitialisation sélective ?')">
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="materiel" id="target_materiel">
+                            <label class="form-check-label" for="target_materiel">Matériel</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="personnes" id="target_personnes">
+                            <label class="form-check-label" for="target_personnes">Personnes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="prets" id="target_prets">
+                            <label class="form-check-label" for="target_prets">Prêts / Historique</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="lieux" id="target_lieux">
+                            <label class="form-check-label" for="target_lieux">Lieux</label>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="cat_materiel" id="target_cat_materiel">
+                            <label class="form-check-label" for="target_cat_materiel">Catégories matériel</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="cat_personnes" id="target_cat_personnes">
+                            <label class="form-check-label" for="target_cat_personnes">Catégories personnes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="champs_materiel" id="target_champs_materiel">
+                            <label class="form-check-label" for="target_champs_materiel">Champs personnalisés matériel</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="targets" value="champs_personnes" id="target_champs_personnes">
+                            <label class="form-check-label" for="target_champs_personnes">Champs personnalisés personnes</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Pour confirmer, tapez <code>REINITIALISER_SELECTION</code> :
+                    </label>
+                    <input type="text" name="confirmation_partielle" class="form-control"
+                           placeholder="REINITIALISER_SELECTION" autocomplete="off" required>
+                </div>
+
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="bi bi-eraser-fill"></i> Réinitialiser la sélection
+                </button>
+            </form>
         </div>
     </div>
 </div>
