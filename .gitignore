@@ -32,5 +32,4 @@ Thumbs.db
 node_modules/
 
 # Docker local
-.env
 docker-data/
