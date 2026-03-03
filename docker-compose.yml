@@ -1,0 +1,16 @@
+services:
+  pretgo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pretgo:latest
+    container_name: pretgo
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-}
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - ${PRETGO_DATA_PATH:-./docker-data/data}:/app/data
+      - ${PRETGO_UPLOADS_PATH:-./docker-data/uploads/materiel}:/app/static/uploads/materiel

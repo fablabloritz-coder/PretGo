@@ -30,3 +30,7 @@ Thumbs.db
 
 # Node (résiduel)
 node_modules/
+
+# Docker local
+.env
+docker-data/

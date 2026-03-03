@@ -122,6 +122,76 @@ python app.py
 
 L'application est accessible sur **http://localhost:5000**.
 
+### Déploiement avec Docker (recommandé pour serveur)
+
+PretGo est prêt à être exécuté en conteneur avec persistance de la base SQLite et des images uploadées.
+
+#### 1) Lancer en mode serveur (stable)
+
+```bash
+docker compose up -d --build
+```
+
+- Application: `http://localhost:5000`
+- Données persistées sur le disque hôte (bind mounts):
+    - `./docker-data/data` (SQLite, sauvegardes, clé secrète, code de récupération, documents)
+    - `./docker-data/uploads/materiel` (images matériel)
+
+Arrêt:
+
+```bash
+docker compose down
+```
+
+#### 2) Lancer en mode développement (code monté en direct)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Ce mode monte le code local dans le conteneur et lance `python app.py`.
+
+#### 3) Variable d'environnement conseillée (serveur)
+
+Définissez une clé secrète forte avant de lancer en production :
+
+```bash
+cp .env.example .env
+```
+
+Vous pouvez adapter les chemins hôte via `.env` :
+
+```bash
+PRETGO_DATA_PATH=./docker-data/data
+PRETGO_UPLOADS_PATH=./docker-data/uploads/materiel
+```
+
+```bash
+# Linux/macOS
+export FLASK_SECRET_KEY="votre_cle_longue_et_aleatoire"
+
+# PowerShell
+$env:FLASK_SECRET_KEY="votre_cle_longue_et_aleatoire"
+```
+
+#### 4) Mise à jour en serveur
+
+```bash
+docker compose up -d --build
+```
+
+#### 5) Sauvegarde / restauration
+
+- La persistance est assurée par des dossiers hôte (donc indépendants du conteneur).
+- Données critiques à conserver :
+    - `docker-data/data/gestion_prets.db`
+    - `docker-data/data/secret_key.txt`
+    - `docker-data/data/code_recuperation.txt`
+    - `docker-data/data/documents/`
+    - `docker-data/data/sauvegardes/` (sauvegardes auto/manuelles côté app)
+    - `docker-data/uploads/materiel/`
+- En plus, utilisez les fonctions de sauvegarde intégrées de PretGo pour exporter des archives `.pretgo` hors de la machine.
+
 ---
 
 ## 📁 Structure du projet
