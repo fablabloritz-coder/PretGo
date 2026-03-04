@@ -337,21 +337,23 @@ def importer_inventaire():
             ajoutes = 0
             doublons = 0
 
-            # Charger les catégories de matériel existantes pour la normalisation
-            categories_mat = [row['nom'] for row in conn.execute(
-                'SELECT nom FROM categories_materiel ORDER BY nom'
-            ).fetchall()]
+            # Charger les catégories de matériel + préfixes pour la normalisation
+            categories_rows = conn.execute(
+                'SELECT nom, prefixe_inventaire FROM categories_materiel ORDER BY nom'
+            ).fetchall()
+            categories_mat = [row['nom'] for row in categories_rows]
+            prefixes_by_type = {
+                row['nom']: (row['prefixe_inventaire'] or 'INV').upper()
+                for row in categories_rows
+            }
             # Construire un index insensible à la casse
             cat_lower_map = {c.lower(): c for c in categories_mat}
 
             for ligne in lecteur:
-                num_inv = (ligne.get('numero_inventaire') or ligne.get('Numero inventaire')
-                           or ligne.get('N° inventaire') or '').strip()
-                if not num_inv or num_inv.startswith('#'):
-                    continue
-
                 type_mat = (ligne.get('type_materiel') or ligne.get('Type')
                             or ligne.get('type') or '').strip()
+                num_inv = (ligne.get('numero_inventaire') or ligne.get('Numero inventaire')
+                           or ligne.get('N° inventaire') or '').strip()
                 marque = (ligne.get('marque') or ligne.get('Marque') or '').strip()
                 modele = (ligne.get('modele') or ligne.get('Modele') or ligne.get('Modèle') or '').strip()
                 num_serie = (ligne.get('numero_serie') or ligne.get('Numero serie')
@@ -376,10 +378,28 @@ def importer_inventaire():
                     else:
                         custom_form_data[colonne] = valeur
 
+                # Ignorer les lignes de séparation/commentaires du gabarit
+                if type_mat.startswith('#'):
+                    continue
+
+                # Ignorer les lignes complètement vides
+                if not any([type_mat, num_inv, marque, modele, num_serie, notes]):
+                    continue
+
                 # Normaliser le type par rapport aux catégories existantes
                 type_lower = type_mat.lower()
                 if type_lower in cat_lower_map:
                     type_mat = cat_lower_map[type_lower]
+
+                # Type par défaut si absent
+                if not type_mat:
+                    type_mat = categories_mat[0] if categories_mat else 'Autre'
+
+                # Générer automatiquement un numéro d'inventaire si absent
+                if not num_inv:
+                    from utils import get_next_inventory_number
+                    prefix = prefixes_by_type.get(type_mat, 'INV')
+                    num_inv = get_next_inventory_number(conn, prefix)
 
                 existant = conn.execute(
                     'SELECT id FROM inventaire WHERE numero_inventaire = ?', (num_inv,)
@@ -392,7 +412,7 @@ def importer_inventaire():
                         '''INSERT INTO inventaire (type_materiel, marque, modele,
                            numero_serie, numero_inventaire, systeme_exploitation, notes)
                            VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                        (type_mat if type_mat else (categories_mat[0] if categories_mat else 'Autre'),
+                        (type_mat,
                          marque, modele, num_serie, num_inv, os_val, notes)
                     )
                     sauver_valeurs_champs(cursor.lastrowid, 'materiel', custom_form_data)

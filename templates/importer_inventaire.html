@@ -63,7 +63,7 @@
                     </thead>
                     <tbody>
                         <tr><td><code>type_materiel</code></td><td>✅ Oui</td></tr>
-                        <tr><td><code>numero_inventaire</code></td><td>✅ Oui</td></tr>
+                        <tr><td><code>numero_inventaire</code></td><td>Non (auto si vide)</td></tr>
                         <tr><td><code>marque</code></td><td>Non</td></tr>
                         <tr><td><code>modele</code></td><td>Non</td></tr>
                         <tr><td><code>numero_serie</code></td><td>Non</td></tr>
@@ -82,6 +82,7 @@
                     Les doublons (même n° inventaire) seront ignorés.
                     Les types sont normalisés automatiquement
                     (pc → Ordinateur, vp → Vidéoprojecteur, etc.)
+                    <br>Si <code>numero_inventaire</code> est vide, il est généré automatiquement selon le préfixe de catégorie.
                     {% if champs_custom %}
                     <br>Les champs personnalisés sont importables via les colonnes <code>custom_&lt;nom_champ&gt;</code>.
                     {% endif %}
