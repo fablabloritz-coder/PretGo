@@ -120,9 +120,15 @@
                     {% endif %}
                 </div>
 
-                <button type="button" id="btn-add-item" class="btn btn-outline-primary btn-sm mt-2">
-                    <i class="bi bi-plus-circle"></i> Ajouter un objet
-                </button>
+                <div class="d-flex align-items-center gap-2 mt-2">
+                    <button type="button" id="btn-add-item" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-plus-circle"></i> Ajouter un objet
+                    </button>
+                    <button type="button" id="btn-simuler-scan" class="btn btn-link btn-sm text-muted p-0 opacity-50"
+                            title="Test: simuler une impulsion de douchette USB">
+                        <i class="bi bi-lightning-charge"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Lieu (optionnel) -->
@@ -352,6 +358,7 @@ function toggleDuree() {
 (function() {
     const container = document.getElementById('items-container');
     const btnAdd = document.getElementById('btn-add-item');
+    const btnSimulerScan = document.getElementById('btn-simuler-scan');
     let itemIndex = container.querySelectorAll('.item-row').length;
     let debounceTimers = {};
     let activeScanTarget = null;
@@ -361,6 +368,41 @@ function toggleDuree() {
         const rows = container.querySelectorAll('.item-row');
         rows.forEach(row => {
             row.querySelector('.btn-remove-item').style.display = rows.length > 1 ? '' : 'none';
+        });
+    }
+
+    function getTargetRowForSimulatedScan() {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.classList && activeEl.classList.contains('item-input')) {
+            return activeEl.closest('.item-row');
+        }
+        const rows = Array.from(container.querySelectorAll('.item-row'));
+        const emptyRow = rows.find(row => !row.querySelector('.item-materiel-id').value);
+        return emptyRow || rows[0] || null;
+    }
+
+    function simulerImpulsionDouchette() {
+        fetch('{{ url_for("api.api_inventaire_random_scan") }}')
+            .then(r => r.json())
+            .then(payload => {
+                if (!payload || !payload.ok || !payload.code) return;
+                const row = getTargetRowForSimulatedScan();
+                if (!row) return;
+                const input = row.querySelector('.item-input');
+                if (!input) return;
+
+                // Simulation d'un scan clavier : injection du code puis déclenchement de l'autocomplete.
+                input.focus();
+                input.value = payload.code;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            })
+            .catch(() => {});
+    }
+
+    if (btnSimulerScan) {
+        btnSimulerScan.addEventListener('click', function(e) {
+            e.preventDefault();
+            simulerImpulsionDouchette();
         });
     }
 

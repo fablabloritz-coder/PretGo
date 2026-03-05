@@ -119,6 +119,45 @@ def api_inventaire():
     return jsonify([dict(i) for i in items])
 
 
+@bp.route('/api/inventaire/random-scan')
+@admin_required
+def api_inventaire_random_scan():
+    """API JSON : retourne un code d'inventaire aléatoire pour simuler un scan douchette."""
+    conn = get_app_db()
+
+    # Priorité aux matériels disponibles pour simuler un flux de prêt réaliste.
+    item = conn.execute('''
+        SELECT id, numero_inventaire, etat
+        FROM inventaire
+        WHERE actif = 1 AND etat = 'disponible'
+        ORDER BY RANDOM()
+        LIMIT 1
+    ''').fetchone()
+
+    if not item:
+        item = conn.execute('''
+            SELECT id, numero_inventaire, etat
+            FROM inventaire
+            WHERE actif = 1
+            ORDER BY RANDOM()
+            LIMIT 1
+        ''').fetchone()
+
+    if not item:
+        return jsonify({
+            'ok': False,
+            'message': 'Aucun matériel actif trouvé pour simuler un scan.'
+        }), 404
+
+    return jsonify({
+        'ok': True,
+        'id': item['id'],
+        'code': item['numero_inventaire'],
+        'numero_inventaire': item['numero_inventaire'],
+        'etat': item['etat'],
+    })
+
+
 
 @bp.route('/api/scan')
 def api_scan():

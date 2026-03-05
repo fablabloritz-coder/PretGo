@@ -28,12 +28,12 @@
 
 <!-- Filtres par type -->
 <div class="d-flex flex-wrap gap-2 mb-3">
-    <a href="{{ url_for('inventaire.etiquettes') }}"
+    <a href="{{ url_for('inventaire.etiquettes', q=recherche if recherche else None, tri=tri if tri != 'type' else None) }}"
        class="btn {{ 'btn-dark' if filtre_type == 'tous' else 'btn-outline-dark' }} btn-sm">
         Tous ({{ comptages.total }})
     </a>
     {% for t in types %}
-    <a href="{{ url_for('inventaire.etiquettes', type=t.type_materiel) }}"
+    <a href="{{ url_for('inventaire.etiquettes', type=t.type_materiel, q=recherche if recherche else None, tri=tri if tri != 'type' else None) }}"
        class="btn {{ 'btn-dark' if filtre_type == t.type_materiel else 'btn-outline-dark' }} btn-sm">
         {% if t.type_materiel == 'Ordinateur' %}
             <i class="bi bi-laptop"></i>
@@ -55,6 +55,9 @@
         {% if filtre_type != 'tous' %}
         <input type="hidden" name="type" value="{{ filtre_type }}">
         {% endif %}
+        {% if tri != 'type' %}
+        <input type="hidden" name="tri" value="{{ tri }}">
+        {% endif %}
         <div class="search-box flex-grow-1">
             <i class="bi bi-search"></i>
             <input type="text" name="q" class="form-control"
@@ -65,7 +68,7 @@
             <i class="bi bi-search"></i>
         </button>
         {% if recherche %}
-        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None) }}"
+        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, tri=tri if tri != 'type' else None) }}"
            class="btn btn-outline-secondary">
             <i class="bi bi-x-lg"></i>
         </a>
@@ -88,22 +91,21 @@
                 <th>N° série</th>
                 <th>État</th>
                 <th>
-                    Date d'ajout
                     {% if tri == 'date_asc' %}
-                        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche, tri='date_desc') }}" 
-                           class="text-decoration-none ms-1" title="Trier par date décroissante">
-                            <i class="bi bi-sort-down-alt text-primary"></i>
-                        </a>
+                    <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche if recherche else None, tri='date_desc') }}"
+                       class="text-decoration-none text-reset" title="Trier par date décroissante">
+                        Date d'ajout <i class="bi bi-sort-down-alt text-primary ms-1"></i>
+                    </a>
                     {% elif tri == 'date_desc' %}
-                        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche, tri='type') }}" 
-                           class="text-decoration-none ms-1" title="Retour au tri par type">
-                            <i class="bi bi-sort-up text-primary"></i>
-                        </a>
+                    <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche if recherche else None, tri='date_asc') }}"
+                       class="text-decoration-none text-reset" title="Trier par date croissante">
+                        Date d'ajout <i class="bi bi-sort-up text-primary ms-1"></i>
+                    </a>
                     {% else %}
-                        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche, tri='date_asc') }}" 
-                           class="text-decoration-none ms-1" title="Trier par date croissante">
-                            <i class="bi bi-sort-down"></i>
-                        </a>
+                    <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche if recherche else None, tri='date_asc') }}"
+                       class="text-decoration-none text-reset" title="Trier par date croissante">
+                        Date d'ajout <i class="bi bi-arrow-down-up ms-1 text-muted"></i>
+                    </a>
                     {% endif %}
                 </th>
             </tr>
