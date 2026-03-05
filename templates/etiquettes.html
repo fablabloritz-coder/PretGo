@@ -87,6 +87,25 @@
                 <th>Marque / Modèle</th>
                 <th>N° série</th>
                 <th>État</th>
+                <th>
+                    Date d'ajout
+                    {% if tri == 'date_asc' %}
+                        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche, tri='date_desc') }}" 
+                           class="text-decoration-none ms-1" title="Trier par date décroissante">
+                            <i class="bi bi-sort-down-alt text-primary"></i>
+                        </a>
+                    {% elif tri == 'date_desc' %}
+                        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche, tri='type') }}" 
+                           class="text-decoration-none ms-1" title="Retour au tri par type">
+                            <i class="bi bi-sort-up text-primary"></i>
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('inventaire.etiquettes', type=filtre_type if filtre_type != 'tous' else None, q=recherche, tri='date_asc') }}" 
+                           class="text-decoration-none ms-1" title="Trier par date croissante">
+                            <i class="bi bi-sort-down"></i>
+                        </a>
+                    {% endif %}
+                </th>
             </tr>
         </thead>
         <tbody>
@@ -135,6 +154,9 @@
                     {% else %}
                         <span class="badge bg-info">{{ item.etat }}</span>
                     {% endif %}
+                </td>
+                <td>
+                    <span class="text-muted small">{{ item.date_creation | format_date }}</span>
                 </td>
             </tr>
             {% endfor %}

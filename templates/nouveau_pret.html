@@ -422,6 +422,37 @@ function toggleDuree() {
             .then(items => {
                 const box = row.querySelector('.item-suggestions');
                 if (!items.length) { box.style.display = 'none'; return; }
+                
+                // Si 1 seul résultat → validation automatique
+                if (items.length === 1) {
+                    const item = items[0];
+                    let label = item.type_materiel;
+                    if (item.marque) label += ' — ' + item.marque;
+                    if (item.modele) label += ' ' + item.modele;
+                    if (item.numero_inventaire && !item.numero_inventaire.startsWith('AUTO-'))
+                        label += ' (' + item.numero_inventaire + ')';
+                    
+                    // Assigner automatiquement
+                    row.querySelector('.item-input').value = label;
+                    row.querySelector('.item-materiel-id').value = item.id;
+                    row.querySelector('.linked-label').textContent = item.numero_inventaire || label;
+                    row.querySelector('.item-linked').style.display = 'block';
+                    box.style.display = 'none';
+                    
+                    // Bip de validation
+                    if (typeof window.playBeep === 'function') {
+                        window.playBeep(0.15, 'up');
+                    }
+                    
+                    // Focus sur le bouton "Ajouter un autre objet" ou prochain champ
+                    const addBtn = document.getElementById('btn-add-item');
+                    if (addBtn) {
+                        addBtn.focus();
+                    }
+                    return;
+                }
+                
+                // Sinon, afficher la liste complète
                 box.innerHTML = '';
                 items.forEach(item => {
                     let label = item.type_materiel;
