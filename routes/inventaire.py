@@ -986,7 +986,7 @@ def images_bulk_assign():
             (filtre_type,)
         ).fetchone()[0]
         materiel_no_image = conn.execute(
-            'SELECT id, type_materiel, numero_inventaire FROM inventaire WHERE actif = 1 AND type_materiel = ? AND (image IS NULL OR image = "") ORDER BY numero_inventaire',
+            'SELECT id, type_materiel, numero_inventaire, image FROM inventaire WHERE actif = 1 AND type_materiel = ? ORDER BY numero_inventaire',
             (filtre_type,)
         ).fetchall()
     else:
@@ -994,7 +994,7 @@ def images_bulk_assign():
             'SELECT COUNT(*) FROM inventaire WHERE actif = 1 AND (image IS NULL OR image = "")'
         ).fetchone()[0]
         materiel_no_image = conn.execute(
-            'SELECT id, type_materiel, numero_inventaire FROM inventaire WHERE actif = 1 AND (image IS NULL OR image = "") ORDER BY numero_inventaire'
+            'SELECT id, type_materiel, numero_inventaire, image FROM inventaire WHERE actif = 1 ORDER BY numero_inventaire'
         ).fetchall()
     
     return render_template(
