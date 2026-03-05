@@ -324,6 +324,13 @@ print('[15] Lieux...')
 post('/lieux', {'nom': 'Salle_Test_123'}, label='Ajouter lieu')
 
 # ═══════════════════════════════════════════════════════
+#  15b. GESTION DES IMAGES
+# ═══════════════════════════════════════════════════════
+print('[15b] Gestion des images...')
+get('/images', label='Page gestion images')
+get('/images-bulk', label='Page bulk assign images')
+
+# ═══════════════════════════════════════════════════════
 #  16. CHAMPS PERSONNALISÉS
 # ═══════════════════════════════════════════════════════
 print('[16] Champs personnalisés...')

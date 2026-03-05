@@ -87,6 +87,22 @@
                     </div>
                     <i class="bi bi-chevron-right ms-auto"></i>
                 </a>
+                <a href="{{ url_for('inventaire.gestion_images') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                    <i class="bi bi-images text-primary me-3 fs-4"></i>
+                    <div>
+                        <strong>Gestion des images</strong>
+                        <div class="text-muted small">Uploader et gérer la bibliothèque d'images matériel</div>
+                    </div>
+                    <i class="bi bi-chevron-right ms-auto"></i>
+                </a>
+                <a href="{{ url_for('inventaire.images_bulk_assign') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                    <i class="bi bi-boxes text-success me-3 fs-4"></i>
+                    <div>
+                        <strong>Application images en masse</strong>
+                        <div class="text-muted small">Assigner une image à plusieurs matériels rapidement</div>
+                    </div>
+                    <i class="bi bi-chevron-right ms-auto"></i>
+                </a>
                 <a href="{{ url_for('personnes.categories_personnes_admin') }}" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                     <i class="bi bi-person-lines-fill text-primary me-3 fs-4"></i>
                     <div>
