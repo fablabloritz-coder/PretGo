@@ -68,7 +68,7 @@
                             {% if image.nb_usage > 0 %}
                                 <div class="alert alert-info py-2 px-3 small mb-3">
                                     <i class="bi bi-info-circle"></i>
-                                    Utilisée par <strong>{{ image.nb_usage }}</strong> matériel{{ image.nb_usage | pluralize }}
+                                    Utilisée par <strong>{{ image.nb_usage }}</strong> matériel{% if image.nb_usage > 1 %}s{% endif %}
                                 </div>
 
                                 <!-- Liste des matériels -->
@@ -78,7 +78,7 @@
                                         {% for materiel in image.materiels %}
                                             <li class="text-truncate">
                                                 <i class="bi bi-box"></i>
-                                                <a href="{{ url_for('inventaire.fiche_materiel', mat_id=materiel.id) }}" 
+                                                <a href="{{ url_for('inventaire.modifier_materiel', mat_id=materiel.id) }}" 
                                                    class="text-decoration-none">
                                                     {{ materiel.numero_inventaire }} ({{ materiel.type_materiel }})
                                                 </a>
