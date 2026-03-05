@@ -1,10 +1,13 @@
 """PretGo â€” Blueprint : inventaire"""
 from flask import Blueprint, Response, flash, jsonify, redirect, render_template, request, url_for
 from database import get_setting
-from utils import get_app_db, admin_required, query_inventaire, get_champs_personnalises, get_valeurs_champs, sauver_valeurs_champs
+from utils import get_app_db, admin_required, query_inventaire, get_champs_personnalises, get_valeurs_champs, sauver_valeurs_champs, allowed_file
 import csv
 import io
 import json
+import os
+import uuid
+from werkzeug.utils import secure_filename
 
 bp = Blueprint('inventaire', __name__)
 
