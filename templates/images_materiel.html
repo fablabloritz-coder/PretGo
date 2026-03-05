@@ -80,7 +80,7 @@
                                                 <i class="bi bi-box"></i>
                                                 <a href="{{ url_for('inventaire.modifier_materiel', mat_id=materiel.id) }}" 
                                                    class="text-decoration-none">
-                                                    {{ materiel.numero_inventaire }} ({{ materiel.type_materiel }})
+                                                    {{ materiel.numero_inventaire }}{% if materiel.marque or materiel.modele %} — {{ materiel.marque }}{% if materiel.marque and materiel.modele %} {% endif %}{{ materiel.modele }}{% endif %} ({{ materiel.type_materiel }})
                                                 </a>
                                             </li>
                                         {% endfor %}

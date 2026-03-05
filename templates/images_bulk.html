@@ -111,6 +111,7 @@
                                                data-has-image="{% if materiel.image %}true{% else %}false{% endif %}">
                                         <label class="form-check-label" for="mat_{{ materiel.id }}">
                                             <strong>{{ materiel.numero_inventaire }}</strong>
+                                            {% if materiel.marque or materiel.modele %}<small class="text-muted"> — {{ materiel.marque }}{% if materiel.marque and materiel.modele %} {% endif %}{{ materiel.modele }}</small>{% endif %}
                                             <small class="text-muted">({{ materiel.type_materiel }})</small>
                                             {% if materiel.image %}<span class="badge bg-success ms-2"><i class="bi bi-check"></i> Image</span>{% endif %}
                                         </label>
