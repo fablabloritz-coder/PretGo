@@ -71,8 +71,11 @@
                     <button type="button" id="btn-add-item" class="btn btn-outline-primary btn-sm">
                         <i class="bi bi-plus-circle"></i> Ajouter un objet
                     </button>
-                    <button type="button" id="btn-simuler-scan" class="btn btn-link btn-sm text-muted p-0 opacity-50"
+                    <button type="button" id="btn-simuler-scan"
+                            class="btn btn-link btn-sm text-muted p-0 opacity-50 position-relative"
                             title="Test: simuler une impulsion de douchette USB">
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark"
+                              style="font-size: 0.55rem; line-height: 1;">TEST</span>
                         <i class="bi bi-lightning-charge"></i>
                     </button>
                 </div>
@@ -366,6 +369,7 @@ function toggleDuree() {
                 // Simulation d'un scan clavier : injection du code puis déclenchement de l'autocomplete.
                 input.focus();
                 input.value = payload.code;
+                row.dataset.scanSource = 'simulated';
                 input.dispatchEvent(new Event('input', { bubbles: true }));
             })
             .catch(() => {});
@@ -463,11 +467,17 @@ function toggleDuree() {
             .then(r => r.json())
             .then(items => {
                 const box = row.querySelector('.item-suggestions');
-                if (!items.length) { box.style.display = 'none'; return; }
+                if (!items.length) {
+                    row.dataset.scanSource = '';
+                    box.style.display = 'none';
+                    return;
+                }
                 
                 // Si 1 seul résultat → validation automatique
                 if (items.length === 1) {
                     const item = items[0];
+                    const shouldBeep = row.dataset.scanSource === 'webcam';
+                    row.dataset.scanSource = '';
                     let label = item.type_materiel;
                     if (item.marque) label += ' — ' + item.marque;
                     if (item.modele) label += ' ' + item.modele;
@@ -481,8 +491,8 @@ function toggleDuree() {
                     row.querySelector('.item-linked').style.display = 'block';
                     box.style.display = 'none';
                     
-                    // Bip de validation
-                    if (typeof window.playBeep === 'function') {
+                    // Bip uniquement pour un scan webcam (pas douchette USB, pas simulation)
+                    if (shouldBeep && typeof window.playBeep === 'function') {
                         window.playBeep(0.15, 'up');
                     }
                     
@@ -495,6 +505,7 @@ function toggleDuree() {
                 }
                 
                 // Sinon, afficher la liste complète
+                row.dataset.scanSource = '';
                 box.innerHTML = '';
                 items.forEach(item => {
                     let label = item.type_materiel;
@@ -551,8 +562,9 @@ function toggleDuree() {
                         modal.hide();
                         if (activeScanTarget) {
                             const inp = activeScanTarget.querySelector('.item-input');
+                            activeScanTarget.dataset.scanSource = 'webcam';
                             inp.value = decoded;
-                            inp.dispatchEvent(new Event('input'));
+                            inp.dispatchEvent(new Event('input', { bubbles: true }));
                         }
                     });
                 }, () => {}

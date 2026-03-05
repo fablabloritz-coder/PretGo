@@ -513,12 +513,13 @@ def etiquettes():
     """Page centralisée d'impression d'étiquettes (accessible sans admin)."""
     filtre_type = request.args.get('type', 'tous')
     recherche = request.args.get('q', '').strip()
-    items, types, comptages = query_inventaire(filtre_type, recherche)
+    tri = request.args.get('tri', 'type')  # 'type', 'date_asc', 'date_desc'
+    items, types, comptages = query_inventaire(filtre_type, recherche, tri=tri)
 
     zebra_active = get_setting('impression_zebra_active', '0') == '1'
     return render_template('etiquettes.html', items=items, types=types,
                            filtre_type=filtre_type, recherche=recherche,
-                           comptages=comptages, zebra_active=zebra_active)
+                           comptages=comptages, zebra_active=zebra_active, tri=tri)
 
 
 

@@ -259,7 +259,7 @@ def csv_response(output, filename_prefix):
 #  HELPER REQUÊTE INVENTAIRE
 # ============================================================
 
-def query_inventaire(filtre_type='tous', recherche='', etat_only=None, page=None, par_page=50):
+def query_inventaire(filtre_type='tous', recherche='', etat_only=None, page=None, par_page=50, tri='type'):
     """Helper : interroge l'inventaire avec filtres et pagination optionnelle.
     Renvoie (items, types, comptages) ou (items, types, comptages, total, total_pages, page) si page est fourni."""
     conn = get_app_db()
@@ -287,7 +287,15 @@ def query_inventaire(filtre_type='tous', recherche='', etat_only=None, page=None
         params.extend([f'%{recherche}%'] * 4)
         count_params.extend([f'%{recherche}%'] * 4)
 
-    query += ' ORDER BY type_materiel, numero_inventaire'
+    # Tri dynamique
+    if tri == 'date_asc':
+        # Utiliser id en clé secondaire pour garantir une alternance visible
+        # même quand plusieurs matériels ont la même date_creation.
+        query += ' ORDER BY date_creation ASC, id ASC'
+    elif tri == 'date_desc':
+        query += ' ORDER BY date_creation DESC, id DESC'
+    else:  # tri == 'type' (défaut)
+        query += ' ORDER BY type_materiel, numero_inventaire'
 
     if page is not None:
         total = conn.execute(count_query, count_params).fetchone()[0]

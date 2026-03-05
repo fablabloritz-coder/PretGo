@@ -21,6 +21,7 @@ function escapeHtml(str) {
 
 function initAutocomplete() {
     const searchInput = document.getElementById('personne-search');
+    const searchBox = searchInput ? searchInput.closest('.search-box') : null;
     const resultsDiv = document.getElementById('autocomplete-results');
     const personneIdInput = document.getElementById('personne_id');
     const selectedDiv = document.getElementById('personne-selected');
@@ -69,7 +70,11 @@ function initAutocomplete() {
                         item.addEventListener('click', () => {
                             personneIdInput.value = personne.id;
                             searchInput.value = personne.nom + ' ' + personne.prenom;
-                            searchInput.style.display = 'none';
+                            if (searchBox) {
+                                searchBox.style.display = 'none';
+                            } else {
+                                searchInput.style.display = 'none';
+                            }
 
                             selectedDiv.innerHTML =
                                 '<div class="alert alert-info d-flex justify-content-between align-items-center mb-0">'
@@ -107,12 +112,17 @@ function initAutocomplete() {
 
 function resetPersonne() {
     const searchInput = document.getElementById('personne-search');
+    const searchBox = searchInput ? searchInput.closest('.search-box') : null;
     const personneIdInput = document.getElementById('personne_id');
     const selectedDiv = document.getElementById('personne-selected');
 
     personneIdInput.value = '';
     searchInput.value = '';
-    searchInput.style.display = 'block';
+    if (searchBox) {
+        searchBox.style.display = 'block';
+    } else {
+        searchInput.style.display = 'block';
+    }
     selectedDiv.style.display = 'none';
     searchInput.focus();
 }
