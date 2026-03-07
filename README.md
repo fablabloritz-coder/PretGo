@@ -192,6 +192,18 @@ docker compose up -d --build
     - `docker-data/uploads/materiel/`
 - En plus, utilisez les fonctions de sauvegarde intégrées de PretGo pour exporter des archives `.pretgo` hors de la machine.
 
+#### 6) Déploiement multi-applications (Fablab Suite)
+
+PretGo fait partie d'une suite de 3 applications complémentaires pour Fablabs :
+
+| Application | Description | Port |
+|---|---|---|
+| **PretGo** | Gestion de prêts de matériel | 5000 |
+| **[Fabtrack](https://github.com/fablabloritz-coder/Fabtrack)** | Suivi des consommations machines | 5555 |
+| **[FabBoard](https://github.com/fablabloritz-coder/FabBoard)** | Dashboard TV temps réel | 5580 |
+
+Pour déployer les 3 applications ensemble sur un même serveur, un `docker-compose.yml` unifié est disponible dans le dépôt parent. Voir la documentation de [FabBoard](https://github.com/fablabloritz-coder/FabBoard) pour les instructions de déploiement groupé.
+
 ---
 
 ## 📁 Structure du projet
