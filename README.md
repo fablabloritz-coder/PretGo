@@ -233,6 +233,44 @@ cd /chemin/vers/PretGo
 docker compose up -d --build
 ```
 
+Depannage: application inaccessible depuis le navigateur
+
+1. Verifier que le conteneur tourne:
+
+```bash
+cd /chemin/vers/PretGo
+docker compose ps
+docker ps -a --filter "name=^/pretgo$"
+```
+
+2. Lire les logs de demarrage:
+
+```bash
+docker logs --tail=200 pretgo
+```
+
+3. Tester localement sur le serveur:
+
+```bash
+curl -I http://127.0.0.1:5000
+```
+
+4. Si local OK mais acces distant KO, ouvrir le firewall:
+
+```bash
+sudo ufw allow 5000/tcp
+sudo ufw status
+```
+
+5. Si l'etat est incoherent, remise a plat sans perte de donnees:
+
+```bash
+docker stop pretgo 2>/dev/null || true
+docker rm pretgo 2>/dev/null || true
+cd /chemin/vers/PretGo
+docker compose up -d --build
+```
+
 #### 5) Sauvegarde / restauration
 
 - La persistance est assurée par des dossiers hôte (donc indépendants du conteneur).
