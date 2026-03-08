@@ -174,9 +174,62 @@ export FLASK_SECRET_KEY="votre_cle_longue_et_aleatoire"
 $env:FLASK_SECRET_KEY="votre_cle_longue_et_aleatoire"
 ```
 
-#### 4) Mise à jour en serveur
+#### 4) Procedures d'exploitation Docker (Ubuntu serveur)
+
+Commandes a executer depuis le dossier `PretGo/`.
+
+Mise a jour applicative (code + image + conteneur):
 
 ```bash
+cd /chemin/vers/PretGo
+git pull --ff-only origin main
+docker compose up -d --build
+docker compose ps
+```
+
+Arret du service:
+
+```bash
+cd /chemin/vers/PretGo
+docker compose stop
+```
+
+Relance du service (sans rebuild):
+
+```bash
+cd /chemin/vers/PretGo
+docker compose start
+```
+
+Redemarrage complet (sans rebuild):
+
+```bash
+cd /chemin/vers/PretGo
+docker compose restart
+```
+
+Relance avec rebuild force:
+
+```bash
+cd /chemin/vers/PretGo
+docker compose down
+docker compose up -d --build
+```
+
+Diagnostic rapide:
+
+```bash
+cd /chemin/vers/PretGo
+docker compose ps
+docker logs --tail=120 pretgo
+```
+
+En cas de conflit `container name ... already in use`:
+
+```bash
+docker stop pretgo 2>/dev/null || true
+docker rm pretgo
+cd /chemin/vers/PretGo
 docker compose up -d --build
 ```
 
