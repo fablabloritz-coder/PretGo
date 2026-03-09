@@ -59,6 +59,9 @@ with app.app_context():
 CSRF_EXEMPT_ENDPOINTS = {
     'api.api_personnes', 'api.api_inventaire', 'api.api_scan',
     'api.api_liste_images', 'api.api_statistiques', 'api.api_parcourir_dossiers',
+    'api.fabsuite_manifest', 'api.fabsuite_health',
+    'api.fabsuite_widget_active_loans', 'api.fabsuite_widget_overdue_loans',
+    'api.fabsuite_widget_equipment_status', 'api.fabsuite_notifications',
 }
 
 
@@ -99,6 +102,11 @@ def inject_csrf():
 @app.after_request
 def _set_security_headers(response):
     """Ajoute les headers de sécurité à chaque réponse."""
+    # CORS pour les endpoints FabLab Suite (accès cross-origin depuis FabHome)
+    if request.path.startswith('/api/fabsuite/'):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'

@@ -2,13 +2,193 @@
 from flask import Blueprint, jsonify, request, url_for
 from werkzeug.utils import secure_filename
 from database import get_setting
-from utils import get_app_db, admin_required, allowed_file, get_categories_personnes, UPLOAD_FOLDER
+from utils import get_app_db, admin_required, allowed_file, get_categories_personnes, UPLOAD_FOLDER, calcul_depassement_heures
+from datetime import datetime
 import json
 import os
 import string
 import uuid
 
 bp = Blueprint('api', __name__)
+
+
+# ============================================================
+# FABLAB SUITE — Manifest & Widgets (spec v1.0.0)
+# ============================================================
+
+APP_VERSION = "1.0.0"
+SUITE_SPEC_VERSION = "1.0.0"
+_app_started_at = datetime.now().isoformat()
+
+
+@bp.route('/api/fabsuite/manifest')
+def fabsuite_manifest():
+    """Manifest FabLab Suite — décrit l'application, ses capacités et ses widgets."""
+    return jsonify({
+        "app": "pretgo",
+        "name": "PretGo",
+        "version": APP_VERSION,
+        "suite_version": SUITE_SPEC_VERSION,
+        "status": "running",
+        "description": "Gestion des prêts de matériel pour établissements",
+        "icon": "bi-box-arrow-right",
+        "color": "#0d6efd",
+        "url": request.host_url.rstrip('/'),
+        "capabilities": ["loans", "inventory"],
+        "widgets": [
+            {
+                "id": "active-loans",
+                "label": "Prêts en cours",
+                "description": "Nombre de prêts actuellement actifs",
+                "endpoint": "/api/fabsuite/widget/active-loans",
+                "type": "counter",
+                "refresh_interval": 120
+            },
+            {
+                "id": "overdue-loans",
+                "label": "Prêts en retard",
+                "description": "Liste des prêts dépassant la date de retour prévue",
+                "endpoint": "/api/fabsuite/widget/overdue-loans",
+                "type": "list",
+                "refresh_interval": 120
+            },
+            {
+                "id": "equipment-status",
+                "label": "État du parc",
+                "description": "Répartition des équipements par état",
+                "endpoint": "/api/fabsuite/widget/equipment-status",
+                "type": "chart",
+                "refresh_interval": 300
+            }
+        ],
+        "notifications": {
+            "endpoint": "/api/fabsuite/notifications",
+            "types": ["warning"]
+        },
+        "started_at": _app_started_at
+    })
+
+
+@bp.route('/api/fabsuite/health')
+def fabsuite_health():
+    """Health check rapide pour monitoring par FabHome."""
+    try:
+        conn = get_app_db()
+        conn.execute("SELECT 1")
+        return jsonify({"status": "ok"})
+    except Exception:
+        return jsonify({"status": "error"}), 503
+
+
+@bp.route('/api/fabsuite/widget/active-loans')
+def fabsuite_widget_active_loans():
+    """Widget counter : nombre de prêts en cours."""
+    conn = get_app_db()
+    row = conn.execute(
+        "SELECT COUNT(*) as total FROM prets WHERE retour_confirme = 0"
+    ).fetchone()
+    return jsonify({
+        "value": row['total'] if row else 0,
+        "label": "Prêts en cours",
+        "unit": "prêts"
+    })
+
+
+@bp.route('/api/fabsuite/widget/overdue-loans')
+def fabsuite_widget_overdue_loans():
+    """Widget list : prêts en retard avec nom de l'emprunteur."""
+    conn = get_app_db()
+    prets = conn.execute('''
+        SELECT p.id, p.date_emprunt, p.duree_pret_heures, p.duree_pret_jours,
+               p.date_retour_prevue, p.descriptif_objets,
+               pe.nom, pe.prenom
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        WHERE p.retour_confirme = 0
+    ''').fetchall()
+
+    # Cache des settings pour performance
+    duree_defaut = float(get_setting('duree_alerte_defaut', '7'))
+    unite_defaut = get_setting('duree_alerte_unite', 'jours')
+    heure_fin = get_setting('heure_fin_journee', '17:45')
+
+    items = []
+    for p in prets:
+        est_depasse, heures = calcul_depassement_heures(
+            p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
+            _duree_defaut=duree_defaut, _unite_defaut=unite_defaut,
+            date_retour_prevue=p['date_retour_prevue'], _heure_fin=heure_fin
+        )
+        if est_depasse:
+            jours = int(heures // 24)
+            label = p['descriptif_objets'] or "Matériel"
+            if len(label) > 50:
+                label = label[:50] + "..."
+            items.append({
+                "label": f"{p['prenom']} {p['nom']} — {label}",
+                "value": f"Retard : {jours}j" if jours >= 1 else f"Retard : {int(heures)}h",
+                "status": "warning"
+            })
+    return jsonify({"items": items})
+
+
+@bp.route('/api/fabsuite/widget/equipment-status')
+def fabsuite_widget_equipment_status():
+    """Widget chart : répartition des équipements par état."""
+    conn = get_app_db()
+    rows = conn.execute('''
+        SELECT etat, COUNT(*) as total
+        FROM inventaire WHERE actif = 1
+        GROUP BY etat ORDER BY total DESC
+    ''').fetchall()
+
+    label_map = {
+        'disponible': 'Disponible',
+        'prete': 'Prêté',
+        'hors_service': 'Hors service'
+    }
+    return jsonify({
+        "type": "pie",
+        "labels": [label_map.get(r['etat'], r['etat']) for r in rows],
+        "values": [r['total'] for r in rows]
+    })
+
+
+@bp.route('/api/fabsuite/notifications')
+def fabsuite_notifications():
+    """Notifications : prêts en retard."""
+    conn = get_app_db()
+    prets = conn.execute('''
+        SELECT p.id, p.date_emprunt, p.duree_pret_heures, p.duree_pret_jours,
+               p.date_retour_prevue, p.descriptif_objets,
+               pe.nom, pe.prenom
+        FROM prets p
+        JOIN personnes pe ON p.personne_id = pe.id
+        WHERE p.retour_confirme = 0
+    ''').fetchall()
+
+    duree_defaut = float(get_setting('duree_alerte_defaut', '7'))
+    unite_defaut = get_setting('duree_alerte_unite', 'jours')
+    heure_fin = get_setting('heure_fin_journee', '17:45')
+
+    notifs = []
+    for p in prets:
+        est_depasse, heures = calcul_depassement_heures(
+            p['date_emprunt'], p['duree_pret_heures'], p['duree_pret_jours'],
+            _duree_defaut=duree_defaut, _unite_defaut=unite_defaut,
+            date_retour_prevue=p['date_retour_prevue'], _heure_fin=heure_fin
+        )
+        if est_depasse:
+            jours = int(heures // 24)
+            notifs.append({
+                "id": f"overdue-loan-{p['id']}",
+                "type": "warning",
+                "title": f"Pret en retard : {p['prenom']} {p['nom']}",
+                "message": f"{p['descriptif_objets'] or 'Materiel'} — retard de {jours}j {int(heures % 24)}h",
+                "created_at": p['date_emprunt'],
+                "link": f"/pret/{p['id']}"
+            })
+    return jsonify({"notifications": notifs})
 
 @bp.route('/api/personnes')
 def api_personnes():
