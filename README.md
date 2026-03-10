@@ -80,49 +80,50 @@ Cette application tourne **en local** sur votre poste — aucun serveur externe,
 
 ---
 
-## 🚀 Installation
+## 🚀 Déploiement
 
-### Prérequis
+### 🐳 Docker (recommandé)
 
-- **Windows 10 ou supérieur**
-- **Connexion Internet** (uniquement pour l'installation)
-- Aucune installation de Python n'est nécessaire — un Python portable est téléchargé automatiquement
+Docker est la méthode officielle — comportement identique en local et en production sur serveur Ubuntu. Aucune installation Python requise.
 
-### Installation rapide (recommandée)
-
-1. **Téléchargez** le dossier du projet (ou clonez le dépôt)
-2. **Double-cliquez sur `installer.bat`** — télécharge Python portable + Flask (~15 Mo)
-3. **Double-cliquez sur `lancer.bat`** — lance le serveur et ouvre le navigateur
-4. Connectez-vous avec le mot de passe par défaut **`1234`** puis personnalisez-le
-
-> 💡 Aucune installation système, aucun droit administrateur requis. Tout est contenu dans le dossier du projet.
-
-### Installation manuelle (développeurs)
+**Prérequis :** [Docker Desktop](https://docs.docker.com/get-docker/) (Windows/macOS) ou Docker Engine (Linux).
 
 ```bash
-# Cloner le dépôt
 git clone https://github.com/fablabloritz-coder/PretGo.git
 cd PretGo
+cp .env.example .env        # ajustez PRETGO_PORT si besoin
+docker compose up -d --build
+```
 
-# Créer un environnement virtuel
+L'application est accessible à **http://localhost:5000** (ou le port configuré dans `.env`).
+Connectez-vous avec le mot de passe par défaut **`1234`** puis personnalisez-le.
+
+---
+
+### 🪟 Alternative Windows (sans Docker)
+
+> Pour les environnements sans Docker. Aucune installation Python requise — Python portable téléchargé automatiquement.
+
+1. **Double-cliquez sur `installer.bat`** — télécharge Python portable + Flask (~15 Mo)
+2. **Double-cliquez sur `lancer.bat`** — lance le serveur et ouvre le navigateur
+
+### 👨‍💻 Alternative manuelle (développeurs)
+
+```bash
+git clone https://github.com/fablabloritz-coder/PretGo.git
+cd PretGo
 python -m venv .venv
-
-# Activer l'environnement virtuel
-# Windows :
-.venv\Scripts\activate
-# Linux / macOS :
-source .venv/bin/activate
-
-# Installer les dépendances
+.venv\Scripts\activate      # Windows
+source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
-
-# Lancer l'application
 python app.py
 ```
 
 L'application est accessible sur **http://localhost:5000**.
 
-### Déploiement avec Docker (recommandé pour serveur)
+---
+
+### Procédures Docker détaillées
 
 PretGo est prêt à être exécuté en conteneur avec persistance de la base SQLite et des images uploadées.
 
@@ -285,15 +286,16 @@ docker compose up -d --build
 
 #### 6) Déploiement multi-applications (Fablab Suite)
 
-PretGo fait partie d'une suite de 3 applications complémentaires pour Fablabs :
+PretGo fait partie de la FabLab Suite :
 
 | Application | Description | Port |
 |---|---|---|
+| **[FabHome](https://github.com/fablabloritz-coder/FabHome)** | Hub central — portail et dashboard | 3001 |
 | **PretGo** | Gestion de prêts de matériel | 5000 |
 | **[Fabtrack](https://github.com/fablabloritz-coder/Fabtrack)** | Suivi des consommations machines | 5555 |
 | **[FabBoard](https://github.com/fablabloritz-coder/FabBoard)** | Dashboard TV temps réel | 5580 |
 
-Pour déployer les 3 applications ensemble sur un même serveur, un `docker-compose.yml` unifié est disponible dans le dépôt parent. Voir la documentation de [FabBoard](https://github.com/fablabloritz-coder/FabBoard) pour les instructions de déploiement groupé.
+Pour déployer toute la suite en une commande, un `docker-compose.yml` unifié est disponible à la racine du dépôt parent [fabsuite-spec](https://github.com/fablabloritz-coder/fabsuite-spec).
 
 ---
 
