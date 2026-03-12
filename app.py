@@ -10,6 +10,7 @@ Puis ouvrir http://localhost:5000
 from flask import Flask, request, session, g, abort, render_template
 from database import init_db, DATA_DIR
 from utils import get_app_db, register_filters, register_context_processors, check_and_run_backup
+from fabsuite_core.security import load_secret_key
 from routes import register_blueprints
 import os
 import secrets
@@ -20,26 +21,8 @@ import secrets
 
 app = Flask(__name__)
 
-# ── Clé secrète : générée aléatoirement au premier lancement, persistée ──
-_SECRET_KEY_PATH = os.path.join(DATA_DIR, 'secret_key.txt')
-
-
-def _load_or_generate_secret_key():
-    """Charge la clé secrète depuis le fichier, ou en génère une nouvelle."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if os.path.exists(_SECRET_KEY_PATH):
-        with open(_SECRET_KEY_PATH, 'r', encoding='utf-8') as f:
-            key = f.read().strip()
-            if len(key) >= 32:
-                return key
-    # Générer une clé cryptographiquement sûre
-    key = secrets.token_hex(32)
-    with open(_SECRET_KEY_PATH, 'w', encoding='utf-8') as f:
-        f.write(key)
-    return key
-
-
-app.secret_key = os.environ.get('FLASK_SECRET_KEY') or _load_or_generate_secret_key()
+# ── Clé secrète : env > fichier persisté > génération automatique ──
+app.secret_key = load_secret_key(DATA_DIR, env_var='FLASK_SECRET_KEY')
 
 # Initialiser la base de données au démarrage
 with app.app_context():
@@ -59,9 +42,8 @@ with app.app_context():
 CSRF_EXEMPT_ENDPOINTS = {
     'api.api_personnes', 'api.api_inventaire', 'api.api_scan',
     'api.api_liste_images', 'api.api_statistiques', 'api.api_parcourir_dossiers',
-    'api.fabsuite_manifest', 'api.fabsuite_health',
-    'api.fabsuite_widget_active_loans', 'api.fabsuite_widget_overdue_loans',
-    'api.fabsuite_widget_equipment_status', 'api.fabsuite_notifications',
+    'fabsuite.fabsuite_manifest', 'fabsuite.fabsuite_health',
+    'fabsuite.fabsuite_widget', 'fabsuite.fabsuite_notifications',
 }
 
 
@@ -102,11 +84,7 @@ def inject_csrf():
 @app.after_request
 def _set_security_headers(response):
     """Ajoute les headers de sécurité à chaque réponse."""
-    # CORS pour les endpoints FabLab Suite (accès cross-origin depuis FabHome)
-    if request.path.startswith('/api/fabsuite/'):
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    # CORS pour /api/fabsuite/* géré par fabsuite_core
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
