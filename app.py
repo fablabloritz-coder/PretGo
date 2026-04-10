@@ -14,6 +14,7 @@ from fabsuite_core.security import load_secret_key
 from routes import register_blueprints
 import os
 import secrets
+import traceback
 
 # ============================================================
 #  CRÉATION DE L'APPLICATION
@@ -129,6 +130,11 @@ def page_not_found(e):
 
 @app.errorhandler(500)
 def internal_error(e):
+    try:
+        print("\n[PRETGO 500]", request.method, request.path)
+        traceback.print_exc()
+    except Exception:
+        pass
     return render_template('500.html'), 500
 
 

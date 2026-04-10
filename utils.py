@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import logging
 import os
+import sqlite3
 import secrets
 import shutil
 import threading
@@ -336,22 +337,40 @@ def query_inventaire(filtre_type='tous', recherche='', etat_only=None, page=None
 def get_champs_personnalises(entite):
     """Récupérer les champs personnalisés actifs pour une entité."""
     conn = get_app_db()
-    champs = conn.execute(
-        'SELECT * FROM champs_personnalises WHERE entite = ? AND actif = 1 ORDER BY ordre, id',
-        (entite,)
-    ).fetchall()
+    try:
+        rows = conn.execute(
+            'SELECT * FROM champs_personnalises WHERE entite = ? AND actif = 1 ORDER BY ordre, id',
+            (entite,)
+        ).fetchall()
+    except sqlite3.Error as exc:
+        _log.warning("Champs personnalisés indisponibles (%s): %s", entite, exc)
+        return []
+
+    # Normaliser les valeurs critiques pour éviter les erreurs de rendu Jinja.
+    champs = []
+    for r in rows:
+        d = dict(r)
+        if d.get('options') is None:
+            d['options'] = ''
+        if d.get('type_champ') is None:
+            d['type_champ'] = 'texte'
+        champs.append(d)
     return champs
 
 
 def get_valeurs_champs(entite_id, entite_type):
     """Récupérer les valeurs des champs personnalisés pour une entité."""
     conn = get_app_db()
-    valeurs = conn.execute('''
-        SELECT cp.nom_champ, vcp.valeur
-        FROM valeurs_champs_personnalises vcp
-        JOIN champs_personnalises cp ON vcp.champ_id = cp.id
-        WHERE vcp.entite_id = ? AND cp.entite = ?
-    ''', (entite_id, entite_type)).fetchall()
+    try:
+        valeurs = conn.execute('''
+            SELECT cp.nom_champ, vcp.valeur
+            FROM valeurs_champs_personnalises vcp
+            JOIN champs_personnalises cp ON vcp.champ_id = cp.id
+            WHERE vcp.entite_id = ? AND cp.entite = ?
+        ''', (entite_id, entite_type)).fetchall()
+    except sqlite3.Error as exc:
+        _log.warning("Valeurs de champs indisponibles (%s:%s): %s", entite_type, entite_id, exc)
+        return {}
     return {v['nom_champ']: v['valeur'] for v in valeurs}
 
 
@@ -359,19 +378,22 @@ def sauver_valeurs_champs(entite_id, entite_type, form_data):
     """Sauvegarder les valeurs des champs personnalisés."""
     champs = get_champs_personnalises(entite_type)
     conn = get_app_db()
-    for champ in champs:
-        valeur = form_data.get(f'custom_{champ["nom_champ"]}', '').strip()
-        # Upsert : supprimer puis insérer
-        conn.execute(
-            'DELETE FROM valeurs_champs_personnalises WHERE champ_id = ? AND entite_id = ?',
-            (champ['id'], entite_id)
-        )
-        if valeur:
+    try:
+        for champ in champs:
+            valeur = form_data.get(f'custom_{champ["nom_champ"]}', '').strip()
+            # Upsert : supprimer puis insérer
             conn.execute(
-                'INSERT INTO valeurs_champs_personnalises (champ_id, entite_id, valeur) VALUES (?, ?, ?)',
-                (champ['id'], entite_id, valeur)
+                'DELETE FROM valeurs_champs_personnalises WHERE champ_id = ? AND entite_id = ?',
+                (champ['id'], entite_id)
             )
-    conn.commit()
+            if valeur:
+                conn.execute(
+                    'INSERT INTO valeurs_champs_personnalises (champ_id, entite_id, valeur) VALUES (?, ?, ?)',
+                    (champ['id'], entite_id, valeur)
+                )
+        conn.commit()
+    except sqlite3.Error as exc:
+        _log.warning("Sauvegarde champs personnalisés ignorée (%s:%s): %s", entite_type, entite_id, exc)
 
 
 # ============================================================
