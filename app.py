@@ -131,8 +131,17 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_error(e):
     try:
-        print("\n[PRETGO 500]", request.method, request.path)
-        traceback.print_exc()
+        msg = f"\n[PRETGO 500] {request.method} {request.path}\n"
+        tb = traceback.format_exc()
+        # Aussi loguer l'exception passée en argument (Flask la transmet)
+        if e and str(e):
+            msg += f"Exception: {e}\n"
+        msg += tb
+        print(msg)
+        # Écrire dans un fichier pour diagnostic à distance
+        log_path = os.path.join(DATA_DIR, 'last_error.log')
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.write(f"[{__import__('datetime').datetime.now().isoformat()}]\n{msg}\n")
     except Exception:
         pass
     return render_template('500.html'), 500

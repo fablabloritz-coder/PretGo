@@ -1,7 +1,7 @@
 """PretGo — Blueprint : api (endpoints internes)"""
 from flask import Blueprint, jsonify, request, url_for
 from werkzeug.utils import secure_filename
-from database import get_setting
+from database import get_setting, DATA_DIR
 from utils import get_app_db, admin_required, allowed_file, get_categories_personnes, UPLOAD_FOLDER
 import os
 import string
@@ -313,4 +313,16 @@ def api_parcourir_dossiers():
         'folders': folders,
         'is_root': False
     })
+
+
+@bp.route('/api/last-error')
+@admin_required
+def api_last_error():
+    """API JSON : affiche la dernière erreur 500 enregistrée (diagnostic)."""
+    log_path = os.path.join(DATA_DIR, 'last_error.log')
+    if os.path.exists(log_path):
+        with open(log_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({'error': content})
+    return jsonify({'error': None, 'message': 'Aucune erreur enregistrée'})
 

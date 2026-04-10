@@ -5,9 +5,14 @@ from utils import get_app_db, admin_required, query_inventaire, get_champs_perso
 import csv
 import io
 import json
+import logging
 import os
+import sqlite3
+import traceback
 import uuid
 from werkzeug.utils import secure_filename
+
+_log = logging.getLogger(__name__)
 
 bp = Blueprint('inventaire', __name__)
 
@@ -192,12 +197,21 @@ def ajouter_materiel():
                 sauver_valeurs_champs(mat_id_new, 'materiel', request.form)
                 flash(f'Matériel {numero_inv} ajouté avec succès !', 'success')
                 return redirect(url_for('inventaire.inventaire'))
-            except Exception:
+            except sqlite3.IntegrityError:
                 flash(f'Le numéro d\'inventaire {numero_inv} existe déjà.', 'danger')
+            except Exception as exc:
+                _log.error('Erreur INSERT inventaire: %s', exc, exc_info=True)
+                flash(f'Erreur lors de l\'ajout : {exc}', 'danger')
 
-    conn = get_app_db()
-    categories = conn.execute('SELECT * FROM categories_materiel ORDER BY nom').fetchall()
-    champs_custom = get_champs_personnalises('materiel')
+    try:
+        conn = get_app_db()
+        categories = conn.execute('SELECT * FROM categories_materiel ORDER BY nom').fetchall()
+        champs_custom = get_champs_personnalises('materiel')
+    except Exception as exc:
+        _log.error('Erreur chargement page ajouter: %s', exc, exc_info=True)
+        flash(f'Erreur de chargement : {exc}', 'danger')
+        categories = []
+        champs_custom = []
     return render_template('ajouter_materiel.html', categories=categories, form=form_data,
                            champs_custom=champs_custom)
 
@@ -241,8 +255,13 @@ def modifier_materiel(mat_id):
         flash('Matériel modifié avec succès !', 'success')
         return redirect(url_for('inventaire.inventaire'))
 
-    materiel = conn.execute('SELECT * FROM inventaire WHERE id = ?', (mat_id,)).fetchone()
-    categories = conn.execute('SELECT * FROM categories_materiel ORDER BY nom').fetchall()
+    try:
+        materiel = conn.execute('SELECT * FROM inventaire WHERE id = ?', (mat_id,)).fetchone()
+        categories = conn.execute('SELECT * FROM categories_materiel ORDER BY nom').fetchall()
+    except Exception as exc:
+        _log.error('Erreur chargement page modifier: %s', exc, exc_info=True)
+        flash(f'Erreur de chargement : {exc}', 'danger')
+        return redirect(url_for('inventaire.inventaire'))
     if not materiel:
         flash('Matériel non trouvé.', 'danger')
         return redirect(url_for('inventaire.inventaire'))
