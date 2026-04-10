@@ -117,8 +117,11 @@
                     {% elif champ.type_champ == 'choix' %}
                     <select name="custom_{{ champ.nom_champ }}" class="form-select" {{ 'required' if champ.obligatoire }}>
                         <option value="">— Choisir —</option>
-                        {% for opt in champ.options.split(',') %}
-                        <option value="{{ opt.strip() }}">{{ opt.strip() }}</option>
+                        {% for opt in (champ.options or '').split(',') %}
+                        {% set opt_clean = opt.strip() %}
+                        {% if opt_clean %}
+                        <option value="{{ opt_clean }}">{{ opt_clean }}</option>
+                        {% endif %}
                         {% endfor %}
                     </select>
                     {% elif champ.type_champ == 'case_a_cocher' %}
